@@ -1,0 +1,3150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FreightIQ — Bulk Freight Forecasting & Charter Decision Support (SIH26006)</title>
+  <meta name="description" content="Intelligent freight forecasting, vessel-port feasibility checks, and explainable charter decision-support system for bulk cargo procurement to East Coast of India." />
+
+  <!-- Google Fonts: Fraunces (Display Serif), IBM Plex Sans (Body), IBM Plex Mono (Data Readouts) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400;1,9..144,600&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js for Interactive Forecast Engine -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root {
+      --bg-parchment: #F1ECDD;
+      --bg-parchment-light: #F9F6EE;
+      --bg-parchment-dark: #E4DDCA;
+      --navy-deep: #0B2438;
+      --navy-surface: #103049;
+      --navy-light: #164062;
+      --teal-signal: #2F8F7B;
+      --teal-light: #E7F4F1;
+      --teal-dark: #226758;
+      --rust-amber: #C1652F;
+      --rust-light: #FAECE5;
+      --rust-dark: #994E21;
+      --ink-dark: #0B2438;
+      --ink-muted: #536471;
+      --gold-brass: #C5A059;
+      --border-hairline: 1px solid rgba(11, 36, 56, 0.22);
+      --border-heavy: 2px solid #0B2438;
+      --font-display: 'Fraunces', Georgia, serif;
+      --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-parchment);
+      color: var(--ink-dark);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      background-image: 
+        radial-gradient(rgba(11, 36, 56, 0.05) 1px, transparent 0),
+        linear-gradient(to right, rgba(11, 36, 56, 0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(11, 36, 56, 0.02) 1px, transparent 1px);
+      background-size: 24px 24px, 48px 48px, 48px 48px;
+    }
+
+    /* Top Ticker / Maritime Route Strip */
+    .route-strip {
+      background-color: var(--navy-deep);
+      color: #D3E0EA;
+      padding: 8px 24px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      border-bottom: 2px solid var(--gold-brass);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .route-strip-items {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .route-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .route-badge .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--teal-signal);
+      box-shadow: 0 0 6px var(--teal-signal);
+      animation: pulse-dot 2s infinite;
+    }
+    .route-badge .dot.amber {
+      background: var(--rust-amber);
+      box-shadow: 0 0 6px var(--rust-amber);
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+    .route-strip-time {
+      color: var(--gold-brass);
+      font-weight: 600;
+    }
+
+    /* SIH Banner Bar */
+    .sih-meta-bar {
+      background: #E8E1CE;
+      border-bottom: 1px solid rgba(11, 36, 56, 0.18);
+      padding: 6px 24px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: var(--navy-deep);
+    }
+    .sih-tag {
+      background: var(--navy-deep);
+      color: var(--gold-brass);
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 2px;
+      letter-spacing: 0.5px;
+    }
+    .data-pill-proto {
+      background: rgba(193, 101, 47, 0.15);
+      border: 1px solid var(--rust-amber);
+      color: var(--rust-dark);
+      font-weight: 600;
+      padding: 2px 8px;
+    }
+    .data-pill-live {
+      background: rgba(47, 143, 123, 0.12);
+      border: 1px solid var(--teal-signal);
+      color: var(--teal-dark);
+      font-weight: 600;
+      padding: 2px 8px;
+    }
+
+    /* Navigation Bar */
+    header.site-header {
+      background-color: var(--bg-parchment-light);
+      border-bottom: 2px solid var(--navy-deep);
+      padding: 14px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(8px);
+    }
+    .brand-mark {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .brand-mark h1 {
+      font-family: var(--font-display);
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--navy-deep);
+    }
+    .brand-mark h1 span {
+      color: var(--teal-signal);
+    }
+    .brand-tag {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: var(--navy-deep);
+      color: var(--bg-parchment);
+      padding: 2px 7px;
+      border-radius: 2px;
+    }
+    .nav-links {
+      display: flex;
+      gap: 20px;
+      list-style: none;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      font-weight: 500;
+    }
+    .nav-links a {
+      color: var(--navy-deep);
+      text-decoration: none;
+      border-bottom: 1px dashed transparent;
+      padding-bottom: 2px;
+      transition: all 0.2s ease;
+    }
+    .nav-links a:hover {
+      color: var(--rust-amber);
+      border-bottom-color: var(--rust-amber);
+    }
+    .btn-quick-fix {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--navy-deep);
+      color: var(--bg-parchment-light);
+      border: 1px solid var(--navy-deep);
+      padding: 7px 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s ease;
+    }
+    .btn-quick-fix:hover {
+      background: var(--navy-light);
+    }
+
+    /* Main Container */
+    .main-wrap {
+      max-width: 1260px;
+      margin: 0 auto;
+      padding: 28px 24px 64px 24px;
+    }
+
+    /* Section Ledger Header Styling */
+    .ledger-section-title {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--ink-muted);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .ledger-section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(11, 36, 56, 0.25);
+    }
+    .section-h2 {
+      font-family: var(--font-display);
+      font-size: 30px;
+      font-weight: 700;
+      color: var(--navy-deep);
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+
+    /* Step indicator ribbon */
+    .journey-ribbon {
+      display: flex;
+      background: var(--bg-parchment-light);
+      border: 1px solid rgba(11, 36, 56, 0.2);
+      margin-bottom: 36px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .journey-step {
+      flex: 1;
+      padding: 10px 14px;
+      border-right: 1px solid rgba(11, 36, 56, 0.15);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .journey-step.active {
+      background: rgba(47, 143, 123, 0.08);
+      color: var(--navy-deep);
+      border-bottom: 2px solid var(--teal-signal);
+    }
+    .journey-step .step-no {
+      font-weight: 700;
+      color: var(--gold-brass);
+    }
+    .journey-step .step-label {
+      font-weight: 600;
+      color: var(--navy-deep);
+    }
+
+    /* =========================================================
+       HERO / LIVE INSTRUMENT PANEL
+       ========================================================= */
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 24px;
+      margin-bottom: 48px;
+    }
+
+    .hero-narrative {
+      background: var(--bg-parchment-light);
+      border: 2px solid var(--navy-deep);
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+    .hero-narrative::before {
+      content: "SIH26006 // ECI-CHARTER-DECISION-CORE";
+      position: absolute;
+      top: 10px;
+      right: 14px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--ink-muted);
+    }
+    .hero-narrative h2 {
+      font-family: var(--font-display);
+      font-size: 34px;
+      line-height: 1.18;
+      font-weight: 700;
+      color: var(--navy-deep);
+      margin-top: 8px;
+      margin-bottom: 14px;
+    }
+    .hero-narrative p {
+      font-size: 15px;
+      color: #273D4D;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+    .hero-features-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .chip {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(11, 36, 56, 0.06);
+      border: 1px solid rgba(11, 36, 56, 0.2);
+      padding: 4px 9px;
+      color: var(--navy-deep);
+    }
+
+    /* Live Charter Instrument Panel */
+    .hero-instrument {
+      background: var(--navy-deep);
+      color: #E6EDF2;
+      border: 2px solid var(--navy-deep);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+    .instrument-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+    }
+    .instrument-title {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--gold-brass);
+    }
+    .instrument-timestamp {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: #8CA3B5;
+    }
+
+    .signal-stamp-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 16px;
+      text-align: center;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .signal-badge {
+      display: inline-block;
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      padding: 4px 16px;
+      border: 2px solid currentColor;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      transform: rotate(-1deg);
+      box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+    }
+    .signal-badge.book-now {
+      color: #4ADE80;
+      border-color: #4ADE80;
+      background: rgba(47, 143, 123, 0.25);
+    }
+    .signal-badge.wait {
+      color: #F87171;
+      border-color: #F87171;
+      background: rgba(193, 101, 47, 0.25);
+    }
+    .signal-badge.alt {
+      color: #FBBF24;
+      border-color: #FBBF24;
+      background: rgba(251, 191, 36, 0.2);
+    }
+
+    .signal-confidence-bar {
+      margin-top: 8px;
+      text-align: left;
+    }
+    .confidence-meta {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      margin-bottom: 4px;
+    }
+    .confidence-meta span:last-child {
+      font-weight: 700;
+      color: #4ADE80;
+    }
+    .meter-track {
+      background: rgba(255, 255, 255, 0.15);
+      height: 8px;
+      width: 100%;
+      border-radius: 1px;
+      overflow: hidden;
+    }
+    .meter-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #2F8F7B, #4ADE80);
+      width: 84%;
+      transition: width 0.6s ease;
+    }
+
+    .instrument-reasoning {
+      font-size: 13px;
+      line-height: 1.45;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 12px;
+      border-left: 3px solid var(--gold-brass);
+      margin-bottom: 16px;
+      color: #DCE5EC;
+    }
+    .instrument-reasoning strong {
+      color: #FFFFFF;
+    }
+
+    .instrument-quick-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      padding-top: 12px;
+    }
+    .quick-metric {
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding-right: 6px;
+    }
+    .quick-metric:last-child {
+      border-right: none;
+    }
+    .metric-lbl {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      color: #8EA6BA;
+      text-transform: uppercase;
+    }
+    .metric-val {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin-top: 2px;
+    }
+    .metric-val.green { color: #4ADE80; }
+    .metric-val.amber { color: #F87171; }
+
+    /* =========================================================
+       SECTION 2: PROBLEM STATEMENT WITH STATS
+       ========================================================= */
+    .problem-section {
+      margin-bottom: 50px;
+      background: var(--bg-parchment-light);
+      border: 1px solid rgba(11, 36, 56, 0.25);
+      padding: 28px;
+    }
+    .stats-ledger-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin-top: 20px;
+    }
+    .stat-card {
+      border-top: 3px solid var(--navy-deep);
+      background: var(--bg-parchment);
+      padding: 16px;
+      border-left: 1px solid rgba(11, 36, 56, 0.15);
+      border-right: 1px solid rgba(11, 36, 56, 0.15);
+      border-bottom: 1px solid rgba(11, 36, 56, 0.15);
+    }
+    .stat-card.alert { border-top-color: var(--rust-amber); }
+    .stat-card.warning { border-top-color: var(--gold-brass); }
+    .stat-big {
+      font-family: var(--font-mono);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--navy-deep);
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+    .stat-card.alert .stat-big { color: var(--rust-amber); }
+    .stat-title {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--navy-deep);
+    }
+    .stat-desc {
+      font-size: 12.5px;
+      color: var(--ink-muted);
+      line-height: 1.45;
+    }
+
+    /* =========================================================
+       SECTION 3: 8-STAGE SIH PIPELINE
+       ========================================================= */
+    .pipeline-section {
+      margin-bottom: 54px;
+    }
+    .pipeline-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .pipeline-card {
+      background: var(--bg-parchment-light);
+      border: 1px solid rgba(11, 36, 56, 0.22);
+      padding: 16px;
+      position: relative;
+      transition: all 0.15s ease;
+    }
+    .pipeline-card:hover {
+      border-color: var(--navy-deep);
+      background: #FFFFFF;
+    }
+    .stage-idx {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--gold-brass);
+      background: var(--navy-deep);
+      padding: 2px 6px;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+    .stage-name {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--navy-deep);
+      margin-bottom: 4px;
+    }
+    .stage-desc {
+      font-size: 12px;
+      color: var(--ink-muted);
+      line-height: 1.4;
+    }
+    .stage-tag {
+      margin-top: 8px;
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      background: rgba(11, 36, 56, 0.05);
+      border-top: 1px dashed rgba(11, 36, 56, 0.2);
+      padding-top: 5px;
+      color: var(--navy-deep);
+    }
+
+    /* =========================================================
+       SECTION 4: INTERACTIVE FREIGHT FORECAST (CHART.JS)
+       ========================================================= */
+    .forecast-section {
+      margin-bottom: 54px;
+      background: var(--bg-parchment-light);
+      border: 2px solid var(--navy-deep);
+      padding: 26px;
+    }
+    .forecast-header-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 16px;
+      border-bottom: 1px solid rgba(11, 36, 56, 0.2);
+      padding-bottom: 16px;
+      margin-bottom: 18px;
+    }
+    .lane-selector-box label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-muted);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .select-shipping-lane {
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      font-weight: 600;
+      background: var(--bg-parchment);
+      color: var(--navy-deep);
+      border: 1.5px solid var(--navy-deep);
+      padding: 8px 12px;
+      cursor: pointer;
+      min-width: 360px;
+    }
+    .select-shipping-lane:focus {
+      outline: 2px solid var(--teal-signal);
+    }
+
+    .lane-summary-kpis {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .kpi-block {
+      background: var(--bg-parchment);
+      border: 1px solid rgba(11, 36, 56, 0.2);
+      padding: 10px 14px;
+      min-width: 140px;
+    }
+    .kpi-lbl {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--ink-muted);
+      text-transform: uppercase;
+    }
+    .kpi-val {
+      font-family: var(--font-mono);
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--navy-deep);
+      margin-top: 2px;
+    }
+    .kpi-delta {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+    .kpi-delta.down { color: var(--teal-signal); }
+    .kpi-delta.up { color: var(--rust-amber); }
+
+    .chart-container-outer {
+      background: #FFFFFF;
+      border: 1px solid rgba(11, 36, 56, 0.2);
+      padding: 18px 14px;
+      position: relative;
+    }
+    .chart-canvas-box {
+      height: 360px;
+      position: relative;
+    }
+    .chart-legend-custom {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(11, 36, 56, 0.1);
+      flex-wrap: wrap;
+    }
+    .legend-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-swatch {
+      width: 18px;
+      height: 3px;
+      display: inline-block;
+    }
+    .legend-swatch.hist { background: var(--navy-deep); }
+    .legend-swatch.forecast {
+      background: var(--teal-signal);
+      border-top: 2px dashed var(--teal-signal);
+      height: 0;
+    }
+    .legend-swatch.ci {
+      background: rgba(47, 143, 123, 0.2);
+      height: 10px;
+      border: 1px dashed var(--teal-signal);
+    }
+
+    /* =========================================================
+       SECTION 5: VESSEL & PORT FEASIBILITY CHECKER
+       ========================================================= */
+    .feasibility-section {
+      margin-bottom: 54px;
+    }
+    .checker-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+    }
+    .checker-form-panel {
+      background: var(--bg-parchment-light);
+      border: 2px solid var(--navy-deep);
+      padding: 24px;
+    }
+    .preset-buttons {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .btn-preset {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 5px 9px;
+      background: var(--bg-parchment);
+      border: 1px solid var(--navy-deep);
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--navy-deep);
+      transition: all 0.15s ease;
+    }
+    .btn-preset:hover, .btn-preset.active {
+      background: var(--navy-deep);
+      color: #FFFFFF;
+    }
+
+    .form-group-row {
+      margin-bottom: 12px;
+    }
+    .form-group-row label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--navy-deep);
+      margin-bottom: 4px;
+    }
+    .form-input-control {
+      width: 100%;
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      padding: 8px 10px;
+      border: 1px solid rgba(11, 36, 56, 0.3);
+      background: #FFFFFF;
+      color: var(--navy-deep);
+    }
+    .form-input-control:focus {
+      outline: 2px solid var(--navy-deep);
+    }
+    .form-hint {
+      font-size: 11px;
+      color: var(--ink-muted);
+      margin-top: 2px;
+      font-family: var(--font-body);
+    }
+    .btn-submit-check {
+      width: 100%;
+      margin-top: 10px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      background: var(--navy-deep);
+      color: #FFFFFF;
+      border: 2px solid var(--navy-deep);
+      padding: 10px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .btn-submit-check:hover {
+      background: var(--navy-light);
+    }
+
+    /* Result Panel */
+    .checker-results-panel {
+      background: var(--navy-deep);
+      color: #FFFFFF;
+      border: 2px solid var(--navy-deep);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .results-verdict-banner {
+      border: 2px dashed #FFFFFF;
+      padding: 14px;
+      text-align: center;
+      margin-bottom: 16px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .verdict-tag {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      display: inline-block;
+      padding: 3px 12px;
+    }
+    .verdict-tag.pass {
+      color: #4ADE80;
+      border: 1.5px solid #4ADE80;
+      background: rgba(74, 222, 128, 0.15);
+    }
+    .verdict-tag.warn {
+      color: #FBBF24;
+      border: 1.5px solid #FBBF24;
+      background: rgba(251, 191, 36, 0.15);
+    }
+    .verdict-tag.fail {
+      color: #F87171;
+      border: 1.5px solid #F87171;
+      background: rgba(248, 113, 113, 0.15);
+    }
+    .verdict-detail {
+      font-size: 12.5px;
+      margin-top: 6px;
+      color: #D3E2EE;
+    }
+
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      margin-bottom: 14px;
+    }
+    .matrix-table th {
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 7px 5px;
+      color: var(--gold-brass);
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+    .matrix-table td {
+      padding: 8px 5px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      color: #E2ECF3;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      font-weight: 700;
+      font-size: 10px;
+      border-radius: 2px;
+    }
+    .status-badge.pass { background: rgba(74, 222, 128, 0.2); color: #4ADE80; }
+    .status-badge.fail { background: rgba(248, 113, 113, 0.25); color: #F87171; }
+    .status-badge.warn { background: rgba(251, 191, 36, 0.2); color: #FBBF24; }
+
+    /* =========================================================
+       SECTION 6: THREE-WAY SCENARIO ANALYSIS (SIH REQUIREMENT A)
+       ========================================================= */
+    .scenarios-section {
+      margin-bottom: 54px;
+    }
+    .scenario-grid-three {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin-top: 16px;
+    }
+    .scenario-box {
+      background: var(--bg-parchment-light);
+      border: 2px solid var(--navy-deep);
+      padding: 22px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .scenario-box.recommended {
+      background: #FFFFFF;
+      border: 2.5px solid var(--teal-signal);
+      box-shadow: 0 0 0 1px var(--teal-signal);
+    }
+    .scenario-status-stamp {
+      position: absolute;
+      top: -11px;
+      left: 18px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      padding: 2px 8px;
+      text-transform: uppercase;
+    }
+    .scenario-status-stamp.rec {
+      background: var(--teal-signal);
+      color: #FFFFFF;
+    }
+    .scenario-status-stamp.not-rec {
+      background: rgba(11, 36, 56, 0.1);
+      color: var(--ink-muted);
+      border: 1px solid rgba(11, 36, 56, 0.2);
+    }
+    .scenario-box.recommended .scenario-header {
+      border-bottom-color: var(--teal-signal);
+    }
+    .scenario-header {
+      border-bottom: 1px solid rgba(11, 36, 56, 0.15);
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+    .scenario-tagline {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--ink-muted);
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+    .scenario-name {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--navy-deep);
+    }
+    .scenario-rate-display {
+      font-family: var(--font-mono);
+      font-size: 24px;
+      font-weight: 700;
+      margin-top: 4px;
+      color: var(--navy-deep);
+    }
+    .scenario-rate-display small {
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--ink-muted);
+    }
+    .scenario-metric-list {
+      list-style: none;
+      margin-bottom: 14px;
+      font-size: 12.5px;
+    }
+    .scenario-metric-list li {
+      padding: 6px 0;
+      border-bottom: 1px dashed rgba(11, 36, 56, 0.12);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .scenario-metric-list li span:first-child {
+      color: var(--ink-muted);
+    }
+    .scenario-metric-list li span:last-child {
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .scenario-score-strip {
+      background: rgba(11, 36, 56, 0.05);
+      border: 1px solid rgba(11, 36, 56, 0.15);
+      padding: 8px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      margin-bottom: 12px;
+    }
+    .scenario-score-strip strong {
+      font-size: 15px;
+      color: var(--navy-deep);
+    }
+    .reasoning-callout {
+      background: rgba(11, 36, 56, 0.04);
+      border-left: 3px solid var(--navy-deep);
+      padding: 10px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #1A3448;
+    }
+    .scenario-box.recommended .reasoning-callout {
+      border-left-color: var(--teal-signal);
+      background: var(--teal-light);
+    }
+
+    /* =========================================================
+       SECTION 7: COST & RISK EVALUATION (SIH REQUIREMENT B)
+       ========================================================= */
+    .risk-section {
+      margin-bottom: 54px;
+      background: var(--bg-parchment-light);
+      border: 2px solid var(--navy-deep);
+      padding: 26px;
+    }
+    .risk-grid-six {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 18px;
+    }
+    .risk-card {
+      background: var(--bg-parchment);
+      border: 1px solid rgba(11, 36, 56, 0.22);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .risk-card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      border-bottom: 1px solid rgba(11, 36, 56, 0.12);
+      padding-bottom: 6px;
+    }
+    .risk-card-title {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--navy-deep);
+    }
+    .risk-score-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 2px;
+    }
+    .risk-score-badge.low { background: rgba(47, 143, 123, 0.18); color: var(--teal-dark); }
+    .risk-score-badge.mod { background: rgba(251, 191, 36, 0.22); color: #8E6D2E; }
+    .risk-score-badge.high { background: rgba(193, 101, 47, 0.2); color: var(--rust-dark); }
+    .risk-desc {
+      font-size: 12.5px;
+      color: #2B4254;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+    .risk-mitigation {
+      background: #FFFFFF;
+      border-left: 2.5px solid var(--navy-deep);
+      padding: 6px 8px;
+      font-size: 11.5px;
+      color: var(--ink-dark);
+      font-family: var(--font-body);
+    }
+    .risk-mitigation strong {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--gold-brass);
+      display: block;
+    }
+
+    /* Overall Risk Composite Bar */
+    .overall-risk-banner {
+      margin-top: 18px;
+      background: var(--navy-deep);
+      color: #FFFFFF;
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .overall-risk-meta {
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .overall-risk-meta span {
+      color: var(--gold-brass);
+      font-weight: 700;
+    }
+
+    /* =========================================================
+       SECTION 8: EXPLAINABLE AI RECOMMENDATION PANEL (SIH REQ C)
+       ========================================================= */
+    .xai-section {
+      margin-bottom: 54px;
+      background: var(--navy-deep);
+      color: #FFFFFF;
+      border: 2px solid var(--navy-deep);
+      padding: 28px;
+      position: relative;
+    }
+    .xai-section .ledger-section-title {
+      color: var(--gold-brass);
+    }
+    .xai-section .ledger-section-title::after {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .xai-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      padding-bottom: 16px;
+      margin-bottom: 22px;
+    }
+    .xai-action-stamp {
+      font-family: var(--font-display);
+      font-size: 30px;
+      font-weight: 800;
+      color: #4ADE80;
+      letter-spacing: 0.5px;
+      line-height: 1.1;
+    }
+    .xai-action-stamp.wait { color: #FBBF24; }
+    .xai-action-stamp.alt { color: #60A5FA; }
+
+    .xai-four-answers-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .xai-answer-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 14px;
+    }
+    .xai-answer-q {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--gold-brass);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    .xai-answer-a {
+      font-family: var(--font-display);
+      font-size: 17px;
+      font-weight: 700;
+      color: #FFFFFF;
+      line-height: 1.25;
+      margin-bottom: 4px;
+    }
+    .xai-answer-sub {
+      font-size: 11.5px;
+      color: #9FB8CC;
+    }
+
+    .xai-reasoning-block {
+      background: rgba(0, 0, 0, 0.3);
+      border-left: 3.5px solid var(--teal-signal);
+      padding: 16px 20px;
+      margin-bottom: 22px;
+    }
+    .xai-reasoning-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--gold-brass);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .xai-bullets-list {
+      list-style: none;
+    }
+    .xai-bullets-list li {
+      margin-bottom: 8px;
+      padding-left: 16px;
+      position: relative;
+      font-size: 13.5px;
+      color: #E2EDF5;
+      line-height: 1.45;
+    }
+    .xai-bullets-list li::before {
+      content: '↳';
+      position: absolute;
+      left: 0;
+      color: var(--teal-signal);
+      font-weight: 700;
+    }
+
+    /* Key Factors Attribution Table */
+    .xai-factors-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .xai-factors-table th {
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 8px 6px;
+      color: var(--gold-brass);
+      font-size: 10.5px;
+      text-transform: uppercase;
+    }
+    .xai-factors-table td {
+      padding: 8px 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      color: #D3E2EE;
+    }
+    .factor-weight-bar {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 1px;
+      overflow: hidden;
+      width: 80px;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    .factor-weight-fill {
+      height: 100%;
+      background: var(--teal-signal);
+    }
+    .factor-weight-fill.amber { background: var(--rust-amber); }
+
+    /* =========================================================
+       SECTION 9: STRATEGIC IMPACT & TECH STACK
+       ========================================================= */
+    .impact-section {
+      margin-bottom: 54px;
+    }
+    .impact-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+    .impact-card {
+      background: var(--bg-parchment-light);
+      border: 1px solid rgba(11, 36, 56, 0.22);
+      padding: 22px;
+      position: relative;
+    }
+    .impact-pillar {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--gold-brass);
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .impact-title {
+      font-family: var(--font-display);
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--navy-deep);
+      margin-bottom: 10px;
+      line-height: 1.25;
+    }
+    .impact-list {
+      list-style: none;
+    }
+    .impact-list li {
+      margin-bottom: 8px;
+      padding-left: 14px;
+      position: relative;
+      font-size: 12.5px;
+      color: #2D4353;
+      line-height: 1.45;
+    }
+    .impact-list li::before {
+      content: '■';
+      position: absolute;
+      left: 0;
+      font-size: 8px;
+      top: 4px;
+      color: var(--navy-deep);
+    }
+
+    .tech-section {
+      margin-bottom: 40px;
+      background: var(--navy-deep);
+      color: #FFFFFF;
+      border: 2px solid var(--navy-deep);
+      padding: 32px 28px;
+    }
+    .tech-section .ledger-section-title {
+      color: var(--gold-brass);
+    }
+    .tech-section .ledger-section-title::after {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .tech-section .section-h2 {
+      color: #FFFFFF;
+    }
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+      margin-top: 20px;
+    }
+    .tech-box {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 14px;
+    }
+    .tech-layer {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--gold-brass);
+      margin-bottom: 4px;
+    }
+    .tech-name {
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin-bottom: 6px;
+    }
+    .tech-specs {
+      font-size: 11.5px;
+      color: #9FB8CC;
+      line-height: 1.4;
+    }
+
+    /* Site Footer */
+    footer.site-footer {
+      border-top: 2px solid var(--navy-deep);
+      background: var(--bg-parchment-light);
+      padding: 24px;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--ink-muted);
+    }
+    .footer-meta {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Responsive Adjustments */
+    @media (max-width: 1024px) {
+      .hero-grid, .checker-layout, .scenario-grid-three, .risk-grid-six {
+        grid-template-columns: 1fr;
+      }
+      .pipeline-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .stats-ledger-grid, .impact-grid {
+        grid-template-columns: 1fr;
+      }
+      .tech-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .xai-four-answers-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    @media (max-width: 640px) {
+      .pipeline-grid, .tech-grid, .xai-four-answers-grid {
+        grid-template-columns: 1fr;
+      }
+      .forecast-header-controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .select-shipping-lane {
+        min-width: 100%;
+      }
+      header.site-header {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .nav-links {
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Maritime Route & Market Strip -->
+  <div class="route-strip">
+    <div class="route-strip-items">
+      <div class="route-badge">
+        <span class="dot"></span>
+        <span>BAY OF BENGAL MONITOR: <strong>ACTIVE</strong></span>
+      </div>
+      <div class="route-badge">
+        <span>DESTINATION CORRIDOR: <strong>PARADIP / VIZAG / DHAMRA</strong></span>
+      </div>
+      <div class="route-badge">
+        <span class="dot amber"></span>
+        <span>GLOBAL BUNKER INDEX (VLSFO): <strong>$594.50/MT (+1.8%)</strong></span>
+      </div>
+    </div>
+    <div class="route-strip-time" id="live-utc-clock">UTC 00:00:00 | BDI 1,842</div>
+  </div>
+
+  <!-- SIH 2026 Official Concept Banner -->
+  <div class="sih-meta-bar">
+    <div>
+      <span class="sih-tag">SIH26006</span>
+      <span>Freight Forecasting & Charter Decision Support for Overseas ➔ East Coast India</span>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <span class="data-pill-proto">PROTOTYPE SIMULATED BENCHMARK</span>
+      <span class="data-pill-live">FUTURE: SATELLITE AIS + BALTIC API LIVE</span>
+    </div>
+  </div>
+
+  <!-- Navigation Bar -->
+  <header class="site-header">
+    <div class="brand-mark">
+      <h1>Freight<span>IQ</span></h1>
+      <span class="brand-tag">EAST COAST INDIA CHARTER DESK</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#forecast-engine">1. Rate Forecast</a></li>
+      <li><a href="#vessel-checker">2. Port Feasibility</a></li>
+      <li><a href="#scenarios">3. Scenario Analysis</a></li>
+      <li><a href="#risk-evaluation">4. Cost & Risk</a></li>
+      <li><a href="#xai-recommendation">5. AI Decision</a></li>
+      <li><a href="#pipeline">Architecture</a></li>
+    </ul>
+    <button class="btn-quick-fix" onclick="document.getElementById('xai-recommendation').scrollIntoView({behavior: 'smooth'})">
+      Final Charter Fix ▾
+    </button>
+  </header>
+
+  <main class="main-wrap">
+
+    <!-- 10-Step Journey Ribbon -->
+    <div class="journey-ribbon">
+      <div class="journey-step active">
+        <span class="step-no">STEP 01–04</span>
+        <span class="step-label">Route & Forecast Dynamics</span>
+      </div>
+      <div class="journey-step">
+        <span class="step-no">STEP 05–06</span>
+        <span class="step-label">Vessel & Port Feasibility</span>
+      </div>
+      <div class="journey-step">
+        <span class="step-no">STEP 07</span>
+        <span class="step-label">Book Now vs Wait vs Alt Vessel</span>
+      </div>
+      <div class="journey-step">
+        <span class="step-no">STEP 08</span>
+        <span class="step-label">Cost & Risk Evaluation</span>
+      </div>
+      <div class="journey-step">
+        <span class="step-no">STEP 09–10</span>
+        <span class="step-label">Explainable Final Decision</span>
+      </div>
+    </div>
+
+    <!-- HERO INSTRUMENT PANEL SECTION -->
+    <section class="hero-grid">
+      <div class="hero-narrative">
+        <div>
+          <div class="ledger-section-title">SIH26006 // INTELLIGENT CHARTER SUPPORT</div>
+          <h2>Optimized Vessel Chartering & Bulk Procurement for East Coast India.</h2>
+          <p>
+            FreightIQ couples macroeconomic freight rate forecasting with hydrographic vessel-berth clearance audits and multi-scenario optimization. Built specifically for thermal coal, coking coal, and iron ore flows into <strong>Paradip, Visakhapatnam, and Dhamra</strong>.
+          </p>
+          <div class="hero-features-chips">
+            <span class="chip">✦ 7–14 Day Probabilistic Horizons</span>
+            <span class="chip">✦ Dynamic LOA/Beam/Draft Berth Fit</span>
+            <span class="chip">✦ Book Now vs Wait vs Alt Vessel</span>
+            <span class="chip">✦ Explainable Reason Codes (WHEN / WHICH / WHY)</span>
+          </div>
+        </div>
+        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); border-top: 1px solid rgba(11,36,56,0.15); padding-top: 10px;">
+          CORRIDORS: AUSTRALIA ➔ PARADIP/VIZAG • INDONESIA ➔ DHAMRA
+        </div>
+      </div>
+
+      <!-- Live Recommendation Instrument Panel -->
+      <div class="hero-instrument" id="hero-instrument-box">
+        <div class="instrument-header">
+          <span class="instrument-title" id="inst-lane-label">ACTIVE CORRIDOR // AUSTRALIA ➔ PARADIP</span>
+          <span class="instrument-timestamp" id="inst-status-tag">DETERMINISTIC BENCHMARK</span>
+        </div>
+
+        <div class="signal-stamp-box">
+          <div style="font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; color: #8EA6BA; margin-bottom: 4px;">
+            CHARTER FIX DIRECTIVE
+          </div>
+          <div class="signal-badge wait" id="hero-signal-badge">WAIT TO FIX</div>
+          
+          <div class="signal-confidence-bar">
+            <div class="confidence-meta">
+              <span>Model Certainty Index</span>
+              <span id="hero-conf-score">84.2%</span>
+            </div>
+            <div class="meter-track">
+              <div class="meter-fill" id="hero-conf-meter" style="width: 84.2%; background: linear-gradient(90deg, #C1652F, #E78248);"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="instrument-reasoning" id="hero-reasoning-text">
+          <strong>Auditable Reasoning:</strong> Capesize tonnage buildup in the Pacific Basin is accelerating while Australian port terminal delays have normalized. Our ensemble model forecasts a <strong>$1.45/MT (-7.3%) freight rate dip</strong> over the next 7 days.
+        </div>
+
+        <div class="instrument-quick-metrics">
+          <div class="quick-metric">
+            <div class="metric-lbl">Spot Rate</div>
+            <div class="metric-val" id="hero-spot-val">$19.85/MT</div>
+          </div>
+          <div class="quick-metric">
+            <div class="metric-lbl">7-Day Forecast</div>
+            <div class="metric-val green" id="hero-fc-val">$18.40/MT</div>
+          </div>
+          <div class="quick-metric">
+            <div class="metric-lbl">Net Savings Est.</div>
+            <div class="metric-val amber" id="hero-savings-val">$195,000</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. PROBLEM STATEMENT SECTION -->
+    <section class="problem-section">
+      <div class="ledger-section-title">THE HIGH-STAKES PROBLEM IN DRY BULK LOGISTICS</div>
+      <h2 class="section-h2" style="max-width: 840px;">The Cost of Reactive Chartering & Port Disconnects</h2>
+      <p style="max-width: 880px; color: var(--ink-muted);">
+        India's East Coast power plants and steel mills rely on steady overseas coal and ore flows. Charterers often fix vessels under volatile spot spikes or nominate hulls that fail seasonal draft limits, creating devastating demurrage bills.
+      </p>
+
+      <div class="stats-ledger-grid">
+        <div class="stat-card alert">
+          <div class="stat-big">$22,500<span style="font-size: 15px; font-weight: 400;">/day</span></div>
+          <div class="stat-title">Capesize Demurrage Exposure</div>
+          <div class="stat-desc">
+            A 4-day anchorage delay caused by draft restrictions or berth mismatch eliminates up to 45% of a shipment's voyage margin.
+          </div>
+        </div>
+        <div class="stat-card warning">
+          <div class="stat-big">±28.4%</div>
+          <div class="stat-title">Freight Rate Volatility (30D)</div>
+          <div class="stat-desc">
+            Pacific & Indian Ocean spot indices swing rapidly due to weather disruptions, mine maintenance, and bunker price spikes.
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-big">14.2%</div>
+          <div class="stat-title">Draft / LOA Berth Rejections</div>
+          <div class="stat-desc">
+            Vessels requiring unexpected outer anchorage lightering due to post-monsoon siltation at Paradip and Visakhapatnam.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. EIGHT-STAGE AUDITABLE PIPELINE -->
+    <section class="pipeline-section" id="pipeline">
+      <div class="ledger-section-title">SYSTEM ARCHITECTURE // REFERENCE SYSTEM FLOW</div>
+      <h2 class="section-h2">The 8-Stage End-to-End Decision Pipeline</h2>
+      <p style="color: var(--ink-muted); margin-bottom: 18px;">
+        Unlike opaque black-box tools, every FreightIQ recommendation is backed by a fully traceable data pipeline.
+      </p>
+
+      <div class="pipeline-grid">
+        <div class="pipeline-card">
+          <span class="stage-idx">01 // INGESTION</span>
+          <div class="stage-name">Data Sources</div>
+          <div class="stage-desc">Real-time AIS satellite tracking, Baltic Exchange spot indices, weather forecasts, and port authority tidal tables.</div>
+          <div class="stage-tag">AIS SATELLITE + BALTIC API</div>
+        </div>
+
+        <div class="pipeline-card">
+          <span class="stage-idx">02 // NORMALIZATION</span>
+          <div class="stage-name">Data Processing</div>
+          <div class="stage-desc">Geofenced voyage route calculations, laden vs. ballast speed adjustment, and historical demurrage queue scrubbing.</div>
+          <div class="stage-tag">PANDAS + POLARS PIPELINE</div>
+        </div>
+
+        <div class="pipeline-card">
+          <span class="stage-idx">03 // INFERENCE</span>
+          <div class="stage-name">Freight Forecasting</div>
+          <div class="stage-desc">Temporal Fusion Transformers & gradient boosted ensembles predicting spot freight rates across 7–14 day horizons.</div>
+          <div class="stage-tag">TFT + XGBOOST QUANTILE</div>
+        </div>
+
+        <div class="pipeline-card">
+          <span class="stage-idx">04 // HYDRODYNAMICS</span>
+          <div class="stage-name">Vessel Feasibility</div>
+          <div class="stage-desc">Automated clearance verification matching vessel LOA, beam, air draft, and seasonal arrival drafts against port limits.</div>
+          <div class="stage-tag">BERTH & TIDE SOLVER</div>
+        </div>
+
+        <div class="pipeline-card">
+          <span class="stage-idx">05 // SIMULATION</span>
+          <div class="stage-name">Scenario Analysis</div>
+          <div class="stage-desc">Three-way evaluation: Book Now vs. Wait vs. Alternative Vessel class comparing total freight bills and laycan risk.</div>
+          <div class="stage-tag">3-WAY SCENARIO SIMULATOR</div>
+        </div>
+
+        <div class="pipeline-card">
+          <span class="stage-idx">06 // EVALUATION</span>
+          <div class="stage-name">Cost & Risk Eval</div>
+          <div class="stage-desc">Comprehensive scoring across freight cost, demurrage, forecast uncertainty, port congestion, and vessel fit.</div>
+          <div class="stage-tag">MULTI-DIMENSIONAL RISK</div>
+        </div>
+
+        <div class="pipeline-card">
+          <span class="stage-idx">07 // TRANSPARENCY</span>
+          <div class="stage-name">Explainable AI</div>
+          <div class="stage-desc">Plain-language reasoning explaining WHEN to charter, WHICH vessel to pick, IS it feasible, and WHAT action to take.</div>
+          <div class="stage-tag">EXPLAINABLE AI ENGINE</div>
+        </div>
+
+        <div class="pipeline-card">
+          <span class="stage-idx">08 // ACTION</span>
+          <div class="stage-name">Decision Cockpit</div>
+          <div class="stage-desc">Unified desk cockpit with synchronized parameter updates, interactive charts, and printable fixture memos.</div>
+          <div class="stage-tag">INTERACTIVE LEDGER UI</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. INTERACTIVE FREIGHT FORECAST CHART (STEPS 1–4) -->
+    <section class="forecast-section" id="forecast-engine">
+      <div class="ledger-section-title">STEPS 01–04 // FREIGHT RATE CONDITION & PROJECTIONS</div>
+      <div class="forecast-header-controls">
+        <div>
+          <h2 class="section-h2" style="margin-bottom: 4px;">Freight Rate Forecasts & Lane Dynamics</h2>
+          <p style="color: var(--ink-muted); font-size: 13.5px;">Select an overseas load corridor & Indian East Coast discharge port to inspect predicted rate trajectories and uncertainty bands.</p>
+        </div>
+        <div class="lane-selector-box">
+          <label for="lane-select">ACTIVE BULK CORRIDOR (PROTOTYPE DATA)</label>
+          <select id="lane-select" class="select-shipping-lane" onchange="onLaneChange(this.value)">
+            <option value="australia-paradip">Lane 1: Australia (Newcastle) ➔ Paradip (Capesize Coal)</option>
+            <option value="australia-vizag">Lane 2: Australia (Gladstone) ➔ Visakhapatnam (Panamax Coal)</option>
+            <option value="indonesia-dhamra">Lane 3: Indonesia (Taboneo) ➔ Dhamra (Supramax Steam Coal)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Lane KPI Cards -->
+      <div class="lane-summary-kpis" style="margin-bottom: 18px;">
+        <div class="kpi-block">
+          <div class="kpi-lbl">Current Spot Rate</div>
+          <div class="kpi-val" id="chart-kpi-spot">$19.85/MT</div>
+          <div class="kpi-delta" id="chart-kpi-spot-note">Baltic Index Linked</div>
+        </div>
+        <div class="kpi-block">
+          <div class="kpi-lbl">7-Day Forecast</div>
+          <div class="kpi-val" id="chart-kpi-fc">$18.40/MT</div>
+          <div class="kpi-delta down" id="chart-kpi-delta">-7.3% ($1.45/MT)</div>
+        </div>
+        <div class="kpi-block">
+          <div class="kpi-lbl">14-Day Horizon</div>
+          <div class="kpi-val" id="chart-kpi-14d">$17.90/MT</div>
+          <div class="kpi-delta down" id="chart-kpi-14d-delta">-9.8% Anticipated</div>
+        </div>
+        <div class="kpi-block">
+          <div class="kpi-lbl">Forecast Trend & Uncertainty</div>
+          <div class="kpi-val" style="font-size: 15px; color: var(--rust-amber);" id="chart-kpi-rec">WAIT 5–7 DAYS</div>
+          <div class="kpi-delta" id="chart-kpi-rec-sub">Uncertainty: Low (±$0.60)</div>
+        </div>
+      </div>
+
+      <!-- Chart Container -->
+      <div class="chart-container-outer">
+        <div class="chart-canvas-box">
+          <canvas id="freightChart"></canvas>
+        </div>
+        <div class="chart-legend-custom">
+          <div class="legend-indicator">
+            <span class="legend-swatch hist"></span>
+            <span>Historical Actuals (T-14 to Today)</span>
+          </div>
+          <div class="legend-indicator">
+            <span class="legend-swatch forecast"></span>
+            <span>Ensemble Forecast (Day +1 to +14)</span>
+          </div>
+          <div class="legend-indicator">
+            <span class="legend-swatch ci"></span>
+            <span>80% Quantile Confidence Interval Band</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. VESSEL & PORT FEASIBILITY CHECKER (STEPS 5–6) -->
+    <section class="feasibility-section" id="vessel-checker">
+      <div class="ledger-section-title">STEPS 05–06 // HYDROGRAPHIC BERTH COMPLIANCE ENGINE</div>
+      <h2 class="section-h2">Vessel & Destination Port Feasibility Verifier</h2>
+      <p style="color: var(--ink-muted); margin-bottom: 20px;">
+        Audit whether your nominated bulk carrier satisfies LOA, beam, and permissible arrival draft thresholds at specific East Coast India discharge berths.
+      </p>
+
+      <div class="checker-layout">
+        <!-- Input Form -->
+        <div class="checker-form-panel">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--navy-deep);">SELECT VESSEL CLASS PRESET:</span>
+          </div>
+          <div class="preset-buttons">
+            <button type="button" class="btn-preset active" id="preset-capesize" onclick="applyVesselPreset('capesize')">Capesize (180k DWT)</button>
+            <button type="button" class="btn-preset" id="preset-kamsarmax" onclick="applyVesselPreset('kamsarmax')">Kamsarmax (82k DWT)</button>
+            <button type="button" class="btn-preset" id="preset-panamax" onclick="applyVesselPreset('panamax')">Panamax (75k DWT)</button>
+            <button type="button" class="btn-preset" id="preset-supramax" onclick="applyVesselPreset('supramax')">Supramax (58k DWT)</button>
+            <button type="button" class="btn-preset" id="preset-handysize" onclick="applyVesselPreset('handysize')">Handysize (38k DWT)</button>
+          </div>
+
+          <form id="feasibility-form" onsubmit="event.preventDefault(); updateAll();">
+            <div class="form-group-row">
+              <label for="dest-port">Discharge Port & Terminal</label>
+              <select id="dest-port" class="form-input-control" onchange="onPortChange(this.value)">
+                <option value="paradip">Paradip Port — Mechanized Coal Berth (MCHW)</option>
+                <option value="vizag">Visakhapatnam — Outer Harbour Coal Terminal (EQ-1)</option>
+                <option value="dhamra">Dhamra Port — Deep Draft Berth 1 (Capesize Iron/Coal)</option>
+              </select>
+              <div class="form-hint">Hydrographic restrictions synchronized with active Port Gazettes.</div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px;">
+              <div>
+                <label for="ves-loa">LOA (Meters)</label>
+                <input type="number" id="ves-loa" step="0.1" value="292.0" class="form-input-control" oninput="onCustomDimensionsChange()" required />
+                <div class="form-hint">Length Overall</div>
+              </div>
+              <div>
+                <label for="ves-beam">Beam (Meters)</label>
+                <input type="number" id="ves-beam" step="0.1" value="45.0" class="form-input-control" oninput="onCustomDimensionsChange()" required />
+                <div class="form-hint">Moulded Breadth</div>
+              </div>
+              <div>
+                <label for="ves-draft">Draft (Meters)</label>
+                <input type="number" id="ves-draft" step="0.1" value="14.5" class="form-input-control" oninput="onCustomDimensionsChange()" required />
+                <div class="form-hint">Arrival Salt Draft</div>
+              </div>
+            </div>
+
+            <div class="form-group-row">
+              <label for="ves-cargo">Cargo Declaration</label>
+              <select id="ves-cargo" class="form-input-control" onchange="updateAll()">
+                <option value="coking-coal">Australian Coking Coal (140,000 MT ± 10%)</option>
+                <option value="steam-coal">South African / Indonesian Thermal Coal (75,000 MT ± 10%)</option>
+                <option value="iron-ore">Australian / Brazilian Iron Ore (170,000 MT ± 10%)</option>
+              </select>
+            </div>
+
+            <button type="submit" class="btn-submit-check">Recalculate Berth Clearance & Impact ➔</button>
+          </form>
+        </div>
+
+        <!-- Verification Output Ledger -->
+        <div class="checker-results-panel">
+          <div>
+            <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--gold-brass); margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 6px;">
+              <span>PORT AUDIT VERDICT</span>
+              <span id="res-port-name">PARADIP (MCHW)</span>
+            </div>
+
+            <div class="results-verdict-banner">
+              <div class="verdict-tag pass" id="overall-verdict-tag">FEASIBLE TO FIX</div>
+              <div class="verdict-detail" id="overall-verdict-desc">
+                All physical vessel dimensions are within safe navigation & berthing envelopes.
+              </div>
+            </div>
+
+            <table class="matrix-table">
+              <thead>
+                <tr>
+                  <th>Constraint</th>
+                  <th>Nominated</th>
+                  <th>Port Limit</th>
+                  <th>Margin</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="matrix-tbody">
+                <!-- Dynamically Populated -->
+              </tbody>
+            </table>
+          </div>
+
+          <div style="background: rgba(0,0,0,0.3); border-left: 3px solid var(--gold-brass); padding: 10px; font-size: 11.5px; line-height: 1.45; color: #D6E3ED;" id="hydro-notes">
+            <strong>Harbour Master Advisory:</strong> Night navigation permitted for vessels up to LOA 260m. Vessels &gt; 280m require 2 escort tugs during flood tide entry. Minimum UKC of 10% strictly enforced.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. THREE-WAY SCENARIO ANALYSIS (STEP 7: SIH REQUIREMENT A) -->
+    <section class="scenarios-section" id="scenarios">
+      <div class="ledger-section-title">STEP 07 // THREE-WAY SCENARIO EVALUATION (SIH REQUIRED)</div>
+      <h2 class="section-h2">Scenario Comparison: Book Now vs. Wait vs. Alternative Vessel</h2>
+      <p style="color: var(--ink-muted);">
+        Evaluating the commercial trade-offs between immediate spot fixture, waiting for the forecasted rate dip, and switching vessel class.
+      </p>
+
+      <div class="scenario-grid-three">
+        <!-- Scenario 1: BOOK NOW -->
+        <div class="scenario-box" id="scen-card-now">
+          <span class="scenario-status-stamp not-rec" id="stamp-now">OPTION 1</span>
+          <div>
+            <div class="scenario-header">
+              <div class="scenario-tagline">STRATEGY ALPHA // IMMEDIATE FIXTURE</div>
+              <div class="scenario-name">Book Spot Now</div>
+              <div class="scenario-rate-display" id="scen-rate-now">$19.85 <small>/ MT</small></div>
+            </div>
+
+            <div class="scenario-score-strip">
+              <span>Overall Rating Score</span>
+              <strong id="scen-score-now">74 / 100</strong>
+            </div>
+
+            <ul class="scenario-metric-list">
+              <li>
+                <span>Estimated Freight Bill</span>
+                <span id="scen-freight-now">$2,779,000</span>
+              </li>
+              <li>
+                <span>Expected Rate Move</span>
+                <span id="scen-move-now">Spot Baseline (0.0%)</span>
+              </li>
+              <li>
+                <span>Waiting Period</span>
+                <span>0 Days (Immediate Laycan)</span>
+              </li>
+              <li>
+                <span>Delay / Demurrage Risk</span>
+                <span id="scen-demurrage-now">Low ($0)</span>
+              </li>
+              <li>
+                <span>Operational Feasibility</span>
+                <span id="scen-feas-now">PASS (Direct Berth)</span>
+              </li>
+              <li>
+                <span>Composite Risk Level</span>
+                <span style="color: var(--rust-amber);" id="scen-risk-now">MODERATE</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="reasoning-callout" id="scen-reason-now">
+            <strong>Charterer Evaluation:</strong> Guarantees load window and eliminates laycan uncertainty, but locks in current market price before anticipated vessel supply arrival.
+          </div>
+        </div>
+
+        <!-- Scenario 2: WAIT -->
+        <div class="scenario-box recommended" id="scen-card-wait">
+          <span class="scenario-status-stamp rec" id="stamp-wait">RECOMMENDED ACTION</span>
+          <div>
+            <div class="scenario-header">
+              <div class="scenario-tagline">STRATEGY BETA // MARKET TIMING</div>
+              <div class="scenario-name">Wait 5–7 Days</div>
+              <div class="scenario-rate-display" id="scen-rate-wait" style="color: var(--teal-signal);">$18.40 <small>/ MT</small></div>
+            </div>
+
+            <div class="scenario-score-strip">
+              <span>Overall Rating Score</span>
+              <strong id="scen-score-wait" style="color: var(--teal-signal);">88 / 100</strong>
+            </div>
+
+            <ul class="scenario-metric-list">
+              <li>
+                <span>Estimated Freight Bill</span>
+                <span id="scen-freight-wait" style="color: var(--teal-signal); font-weight:700;">$2,576,000</span>
+              </li>
+              <li>
+                <span>Expected Rate Move</span>
+                <span id="scen-move-wait" style="color: var(--teal-signal);">-7.3% (-$1.45/MT)</span>
+              </li>
+              <li>
+                <span>Waiting Period</span>
+                <span>5–7 Days Window</span>
+              </li>
+              <li>
+                <span>Delay / Demurrage Risk</span>
+                <span id="scen-demurrage-wait">Low-to-Mid (Acceptable)</span>
+              </li>
+              <li>
+                <span>Operational Feasibility</span>
+                <span id="scen-feas-wait">PASS (Berth Clear)</span>
+              </li>
+              <li>
+                <span>Composite Risk Level</span>
+                <span style="color: var(--teal-signal);" id="scen-risk-wait">LOW</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="reasoning-callout" id="scen-reason-wait">
+            <strong>Charterer Evaluation:</strong> Captures forecasted Pacific tonnage overhang to save an estimated $203,000 without compromising plant stock safety margins.
+          </div>
+        </div>
+
+        <!-- Scenario 3: ALTERNATIVE VESSEL -->
+        <div class="scenario-box" id="scen-card-alt">
+          <span class="scenario-status-stamp not-rec" id="stamp-alt">OPTION 3</span>
+          <div>
+            <div class="scenario-header">
+              <div class="scenario-tagline">STRATEGY GAMMA // FLEET RE-SIZING</div>
+              <div class="scenario-name" id="scen-alt-name">Alt: Panamax (75k)</div>
+              <div class="scenario-rate-display" id="scen-rate-alt">$21.10 <small>/ MT</small></div>
+            </div>
+
+            <div class="scenario-score-strip">
+              <span>Overall Rating Score</span>
+              <strong id="scen-score-alt">68 / 100</strong>
+            </div>
+
+            <ul class="scenario-metric-list">
+              <li>
+                <span>Estimated Freight Bill</span>
+                <span id="scen-freight-alt">$2,954,000 (Split 2x)</span>
+              </li>
+              <li>
+                <span>Expected Rate Move</span>
+                <span id="scen-move-alt">+6.3% Size Premium</span>
+              </li>
+              <li>
+                <span>Waiting Period</span>
+                <span>Flexible (High Availability)</span>
+              </li>
+              <li>
+                <span>Delay / Demurrage Risk</span>
+                <span>Minimal (Zero Tide Wait)</span>
+              </li>
+              <li>
+                <span>Operational Feasibility</span>
+                <span style="color: #4ADE80;" id="scen-feas-alt">OPTIMAL FIT</span>
+              </li>
+              <li>
+                <span>Composite Risk Level</span>
+                <span style="color: var(--gold-brass);" id="scen-risk-alt">MODERATE (Higher $/MT)</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="reasoning-callout" id="scen-reason-alt">
+            <strong>Charterer Evaluation:</strong> Unlocks total draft safety at all Indian berths and avoids draft turn-aways, but incurs higher unit ton-mile freight costs.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. COST & RISK EVALUATION (STEP 8: SIH REQUIREMENT B) -->
+    <section class="risk-section" id="risk-evaluation">
+      <div class="ledger-section-title">STEP 08 // COMPREHENSIVE COST & RISK EVALUATION</div>
+      <h2 class="section-h2">Decision-Support Risk Matrix across Six Dimensions</h2>
+      <p style="color: var(--ink-muted);">
+        Quantified stress-testing of freight cost, demurrage exposure, forecasting confidence intervals, port congestion, and vessel hydrographic compatibility.
+      </p>
+
+      <div class="risk-grid-six">
+        <!-- 1. Freight Cost -->
+        <div class="risk-card">
+          <div>
+            <div class="risk-card-head">
+              <div class="risk-card-title">Freight Cost Exposure</div>
+              <span class="risk-score-badge mod" id="risk-badge-freight">SCORE: 68/100</span>
+            </div>
+            <div class="risk-desc" id="risk-desc-freight">
+              Current spot rate is moderately above the 90-day moving average. Downside freight movement favored over next 7 days.
+            </div>
+          </div>
+          <div class="risk-mitigation">
+            <strong>MITIGATION / ACTION</strong>
+            <span id="risk-act-freight">Implement trailing market limit order at $18.50/MT with shipowners.</span>
+          </div>
+        </div>
+
+        <!-- 2. Delay / Demurrage -->
+        <div class="risk-card">
+          <div>
+            <div class="risk-card-head">
+              <div class="risk-card-title">Delay & Demurrage</div>
+              <span class="risk-score-badge low" id="risk-badge-demurrage">SCORE: 28/100</span>
+            </div>
+            <div class="risk-desc" id="risk-desc-demurrage">
+              Expected laycan queuing at destination berth is 1.2 days, safely beneath the standard 3.0-day laytime allowance.
+            </div>
+          </div>
+          <div class="risk-mitigation">
+            <strong>MITIGATION / ACTION</strong>
+            <span id="risk-act-demurrage">Negotiate 36,000 MT/day reversible laytime terms in charter party.</span>
+          </div>
+        </div>
+
+        <!-- 3. Forecast Uncertainty -->
+        <div class="risk-card">
+          <div>
+            <div class="risk-card-head">
+              <div class="risk-card-title">Forecast Uncertainty</div>
+              <span class="risk-score-badge low" id="risk-badge-uncertainty">SCORE: 22/100</span>
+            </div>
+            <div class="risk-desc" id="risk-desc-uncertainty">
+              Ensemble variance is narrow (±$0.60/MT at 80% CI). Low probability of black-swan freight spike over the 7-day window.
+            </div>
+          </div>
+          <div class="risk-mitigation">
+            <strong>MITIGATION / ACTION</strong>
+            <span id="risk-act-uncertainty">Set protective stop-loss fixing directive at $20.20/MT threshold.</span>
+          </div>
+        </div>
+
+        <!-- 4. Port Congestion -->
+        <div class="risk-card">
+          <div>
+            <div class="risk-card-head">
+              <div class="risk-card-title">Port Congestion Risk</div>
+              <span class="risk-score-badge mod" id="risk-badge-congestion">SCORE: 54/100</span>
+            </div>
+            <div class="risk-desc" id="risk-desc-congestion">
+              Destination anchorage currently holds 6 bulkers waiting for mechanized berths. Tidal windows manageable.
+            </div>
+          </div>
+          <div class="risk-mitigation">
+            <strong>MITIGATION / ACTION</strong>
+            <span id="risk-act-congestion">Time voyage speed (eco-steaming) to match estimated berth opening.</span>
+          </div>
+        </div>
+
+        <!-- 5. Vessel Feasibility Risk -->
+        <div class="risk-card">
+          <div>
+            <div class="risk-card-head">
+              <div class="risk-card-title">Vessel Feasibility Risk</div>
+              <span class="risk-score-badge low" id="risk-badge-feasibility">SCORE: 18/100</span>
+            </div>
+            <div class="risk-desc" id="risk-desc-feasibility">
+              Nominated vessel dimensions comfortably meet berth LOA and draft limits with positive hydrographic safety margin.
+            </div>
+          </div>
+          <div class="risk-mitigation">
+            <strong>MITIGATION / ACTION</strong>
+            <span id="risk-act-feasibility">Validate seasonal post-monsoon channel depth bulletin prior to Notice of Readiness.</span>
+          </div>
+        </div>
+
+        <!-- 6. Composite Overall Risk -->
+        <div class="risk-card" style="border-color: var(--navy-deep); background: #FAF7F0;">
+          <div>
+            <div class="risk-card-head">
+              <div class="risk-card-title">Composite Overall Risk</div>
+              <span class="risk-score-badge low" id="risk-badge-overall">INDEX: 38/100</span>
+            </div>
+            <div class="risk-desc" id="risk-desc-overall">
+              Overall risk is LOW TO MODERATE. Conditions strongly favor executing the strategic recommendation.
+            </div>
+          </div>
+          <div class="risk-mitigation">
+            <strong>EXECUTIVE CHARTER DIRECTIVE</strong>
+            <span id="risk-act-overall">Proceed with recommendation: Hold fixture for 5–7 day rate trough.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="overall-risk-banner">
+        <div class="overall-risk-meta">
+          COMPOSITE RISK RATING: <span id="risk-banner-val">LOW (38 / 100)</span> • RECOMMENDED MITIGATION ACTIVE
+        </div>
+        <div style="font-family: var(--font-mono); font-size: 11px; color: #A8C2D6;">
+          DETERMINISTIC SIH26006 PROTOTYPE EVALUATION MATRIX
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. EXPLAINABLE AI RECOMMENDATION PANEL (STEPS 9–10: SIH REQUIREMENT C) -->
+    <section class="xai-section" id="xai-recommendation">
+      <div class="ledger-section-title">STEPS 09–10 // EXPLAINABLE AI CHARTER DIRECTIVE (E-XAI)</div>
+      
+      <div class="xai-header">
+        <div>
+          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--gold-brass); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 4px;">
+            RECOMMENDED CHARTER ACTION
+          </div>
+          <div class="xai-action-stamp" id="xai-action-heading">WAIT TO FIX (5–7 DAYS)</div>
+        </div>
+        <div style="text-align: right; font-family: var(--font-mono); font-size: 11px; color: #8EA6BA;">
+          <div>MODEL CONFIDENCE: <strong style="color: #4ADE80;" id="xai-conf-val">84.2%</strong></div>
+          <div style="margin-top: 2px;">STATUS: <span class="data-pill-proto" style="padding: 1px 6px;">SIMULATED PROTOTYPE</span></div>
+        </div>
+      </div>
+
+      <!-- The 4 Core Answers (WHEN, WHICH, IS FEASIBLE, WHAT) -->
+      <div class="xai-four-answers-grid">
+        <div class="xai-answer-card">
+          <div class="xai-answer-q">1. WHEN SHOULD WE CHARTER?</div>
+          <div class="xai-answer-a" id="xai-ans-when">Wait 5–7 Days</div>
+          <div class="xai-answer-sub" id="xai-sub-when">Target Window: Next Mon–Wed</div>
+        </div>
+
+        <div class="xai-answer-card">
+          <div class="xai-answer-q">2. WHICH VESSEL CLASS?</div>
+          <div class="xai-answer-a" id="xai-ans-which">Capesize (180k DWT)</div>
+          <div class="xai-answer-sub" id="xai-sub-which">Optimal economies of scale</div>
+        </div>
+
+        <div class="xai-answer-card">
+          <div class="xai-answer-q">3. IS THE VESSEL FEASIBLE?</div>
+          <div class="xai-answer-a" style="color: #4ADE80;" id="xai-ans-feas">FEASIBLE (PASS)</div>
+          <div class="xai-answer-sub" id="xai-sub-feas">Full LOA & Draft clearance</div>
+        </div>
+
+        <div class="xai-answer-card">
+          <div class="xai-answer-q">4. WHAT ACTION SHOULD WE TAKE?</div>
+          <div class="xai-answer-a" id="xai-ans-what">Hold Spot Bid</div>
+          <div class="xai-answer-sub" id="xai-sub-what">Trigger order at $18.50/MT</div>
+        </div>
+      </div>
+
+      <!-- Plain-Language Machine Reasoning (WHY?) -->
+      <div class="xai-reasoning-block">
+        <div class="xai-reasoning-title">WHY? — AUDITABLE MACHINE REASONING & EVIDENCE CHAIN</div>
+        <ul class="xai-bullets-list" id="xai-why-bullets">
+          <li><strong>Forecast Trajectory:</strong> Quantile time-series model indicates a downward rate curve (-7.3%), saving an estimated $203,000 on this 140,000 MT shipment.</li>
+          <li><strong>Port Hydrographic Clearance:</strong> Nominated Capesize vessel satisfies Paradip Mechanized Coal Berth limits with safe draft margin.</li>
+          <li><strong>Holding Exposure vs Demurrage:</strong> Plant inventory levels permit a 7-day laycan deferral without incurring stockout penalties.</li>
+          <li><strong>Uncertainty & Downside Protection:</strong> The 80% confidence bound shows minimal upside breakout risk (stop-loss established at $20.20/MT).</li>
+        </ul>
+      </div>
+
+      <!-- 3 to 5 Key Factors Attribution Table -->
+      <div>
+        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--gold-brass); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">
+          KEY DECISION FACTORS & INFLUENCE WEIGHTS
+        </div>
+        <table class="xai-factors-table">
+          <thead>
+            <tr>
+              <th>Factor Driver</th>
+              <th>Observed Metric</th>
+              <th>Impact Direction</th>
+              <th>Attribution Weight</th>
+            </tr>
+          </thead>
+          <tbody id="xai-factors-tbody">
+            <tr>
+              <td>Pacific Ballaster Influx</td>
+              <td>+14 Capesize vessels converging</td>
+              <td style="color: #4ADE80;">↓ Pushes Rates Down</td>
+              <td>
+                <span class="factor-weight-bar"><span class="factor-weight-fill" style="width: 85%;"></span></span>
+                34%
+              </td>
+            </tr>
+            <tr>
+              <td>Discharge Port Clearance</td>
+              <td>Paradip Draft Margin +0.0m</td>
+              <td style="color: #4ADE80;">✓ Verified Feasible</td>
+              <td>
+                <span class="factor-weight-bar"><span class="factor-weight-fill" style="width: 70%;"></span></span>
+                26%
+              </td>
+            </tr>
+            <tr>
+              <td>Bunker Fuel Forward Swaps</td>
+              <td>VLSFO stabilized at $594/MT</td>
+              <td style="color: #D3E2EE;">↔ Neutral Pressure</td>
+              <td>
+                <span class="factor-weight-bar"><span class="factor-weight-fill" style="width: 45%;"></span></span>
+                18%
+              </td>
+            </tr>
+            <tr>
+              <td>Destination Berth Waiting Queue</td>
+              <td>1.2 days queue depth</td>
+              <td style="color: #4ADE80;">✓ Low Demurrage Threat</td>
+              <td>
+                <span class="factor-weight-bar"><span class="factor-weight-fill" style="width: 40%;"></span></span>
+                14%
+              </td>
+            </tr>
+            <tr>
+              <td>Forecast Uncertainty Margin</td>
+              <td>±$0.60/MT variance band</td>
+              <td style="color: #4ADE80;">✓ High Model Certainty</td>
+              <td>
+                <span class="factor-weight-bar"><span class="factor-weight-fill" style="width: 25%;"></span></span>
+                8%
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 9. STRATEGIC IMPACT SECTION -->
+    <section class="impact-section" id="impact">
+      <div class="ledger-section-title">STRATEGIC MULTI-CAPITAL VALUE</div>
+      <h2 class="section-h2">Measurable Organizational, Economic & Green Impact</h2>
+      <p style="color: var(--ink-muted); margin-bottom: 22px;">
+        How intelligent freight forecasting and feasibility verification directly impact enterprise bottom lines and sustainability goals.
+      </p>
+
+      <div class="impact-grid">
+        <div class="impact-card">
+          <div class="impact-pillar">ORGANIZATIONAL & AUDIT</div>
+          <div class="impact-title">Eliminating Subjective Gut Decisions</div>
+          <ul class="impact-list">
+            <li>Replaces trader intuition with auditable mathematical decision logs for management approvals and regulatory audits.</li>
+            <li>Aligns chartering desks, port operations, and steel/power plant inventory teams on a single source of truth.</li>
+            <li>Real-time alerting on port hydrographic changes prevents costly mid-voyage destination diversion disputes.</li>
+          </ul>
+        </div>
+
+        <div class="impact-card">
+          <div class="impact-pillar">ECONOMIC & COMMERCE</div>
+          <div class="impact-title">Procurement Savings & Demurrage Shield</div>
+          <ul class="impact-list">
+            <li>Average freight cost reduction of $0.80–$1.50 per metric ton across major Capesize and Panamax corridors.</li>
+            <li>Over 60% reduction in avoidable anchorage demurrage penalties at Paradip, Visakhapatnam, and Dhamra.</li>
+            <li>Scenario optimization capitalizes on counter-cyclical market dips while protecting laycan integrity.</li>
+          </ul>
+        </div>
+
+        <div class="impact-card">
+          <div class="impact-pillar">ENVIRONMENTAL & ESG</div>
+          <div class="impact-title">Scope 3 Emissions & Bunker Optimization</div>
+          <ul class="impact-list">
+            <li>Optimized port arrival matching reduces vessel anchorage idling and auxiliary engine diesel emissions by 22%.</li>
+            <li>Vessel-to-berth right-sizing eliminates unnecessary mid-stream lightering voyages at outer anchorages.</li>
+            <li>Continuous CII (Carbon Intensity Indicator) awareness factored into charter recommendation filters.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10. TECHNOLOGY STACK SUMMARY -->
+    <section class="tech-section">
+      <div class="ledger-section-title">UNDERLYING SYSTEM ARCHITECTURE</div>
+      <h2 class="section-h2">Engineered for Robustness, Speed & Accuracy</h2>
+      <p style="color: #9FB8CC; max-width: 800px;">
+        FreightIQ combines high-performance probabilistic forecasting with real-time port telemetry in a modular, auditable microservices stack.
+      </p>
+
+      <div class="tech-grid">
+        <div class="tech-box">
+          <div class="tech-layer">LAYER 01 // FORECAST</div>
+          <div class="tech-name">TFT & XGBoost</div>
+          <div class="tech-specs">
+            Temporal Fusion Transformers capturing multi-horizon dependencies, combined with Quantile Boosters for probabilistic uncertainty bounds.
+          </div>
+        </div>
+
+        <div class="tech-box">
+          <div class="tech-layer">LAYER 02 // BACKEND</div>
+          <div class="tech-name">FastAPI & Python</div>
+          <div class="tech-specs">
+            Asynchronous Python 3.12 services, Polars columnar compute for AIS spatio-temporal streams, and Redis caching for sub-100ms response times.
+          </div>
+        </div>
+
+        <div class="tech-box">
+          <div class="tech-layer">LAYER 03 // FRONTEND</div>
+          <div class="tech-name">Ledger UI & Chart.js</div>
+          <div class="tech-specs">
+            Zero-dependency, high-contrast maritime ledger UI, canvas hardware acceleration for interactive curves, and fully reactive client components.
+          </div>
+        </div>
+
+        <div class="tech-box">
+          <div class="tech-layer">LAYER 04 // DATA PIPELINE</div>
+          <div class="tech-name">AIS & Geofencing</div>
+          <div class="tech-specs">
+            Global satellite AIS data feeds, Baltic Exchange API fixtures, port tidal records, and bunker fuel forward swaps from Platts.
+          </div>
+        </div>
+
+        <div class="tech-box">
+          <div class="tech-layer">LAYER 05 // INFRASTRUCTURE</div>
+          <div class="tech-name">Containerized Cloud</div>
+          <div class="tech-specs">
+            Dockerized microservices deployed on Kubernetes with automated blue/green retraining pipelines and continuous model drift detection.
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div><strong>FreightIQ™</strong> — Intelligent Freight Forecasting & Charter Decision Support</div>
+    <div class="footer-meta">
+      <span>SIH 2026 Problem Statement SIH26006</span>
+      <span>Dedicated to East Coast India: Paradip • Visakhapatnam • Dhamra</span>
+      <span>Deterministic Prototype Benchmark</span>
+    </div>
+  </footer>
+
+  <!-- JAVASCRIPT: REVENUE-CRITICAL CONNECTED DECISION ENGINE -->
+  <script>
+    // Initialize application
+    document.addEventListener('DOMContentLoaded', initApp);
+
+    async function initApp() {
+      try {
+        // Load routes for selector
+        const routesRes = await fetch('/api/v1/routes');
+        const routes = await routesRes.json();
+        const laneSelect = document.getElementById('lane-select');
+        laneSelect.innerHTML = '';
+        routes.forEach(route => {
+          const opt = document.createElement('option');
+          opt.value = route.id;
+          opt.textContent = `${route.name}`;
+          laneSelect.appendChild(opt);
+        });
+        // Trigger load for first route
+        if (routes.length > 0) {
+          onLaneChange(routes[0].id);
+        }
+      } catch (e) {
+        console.error('Failed to initialize app:', e);
+      }
+    }
+
+    // Updated lane change handler to fetch real data
+    async function onLaneChange(routeId) {
+      currentLaneKey = routeId;
+      // Fetch historical freight data
+      const histRes = await fetch(`/api/v1/freight/history?route_id=${routeId}&days=30`);
+      const histData = await histRes.json();
+      // Update chart historical series
+      const historyDays = histData.records.map(r => r.rate_date);
+      const historyRates = histData.records.map(r => r.rate);
+      // Fetch latest forecasts
+      const fcRes = await fetch(`/api/v1/forecast/${routeId}`);
+      const fcData = await fcRes.json();
+      const forecastDays = fcData.forecasts.map(f => `D+${f.horizon_days}`);
+      const forecastRates = fcData.forecasts.map(f => f.predicted_rate);
+      const ciUpper = fcData.forecasts.map(f => f.ci_upper_80);
+      const ciLower = fcData.forecasts.map(f => f.ci_lower_80);
+      // Update UI components
+      updateChart(historyDays, historyRates, forecastDays, forecastRates, ciUpper, ciLower);
+      // Update KPI cards (using first forecast for T+1 and T+14 if available)
+      if (fcData.forecasts.length >= 14) {
+        document.getElementById('chart-kpi-fc').innerText = `$${fcData.forecasts[0].predicted_rate.toFixed(2)}/MT`;
+        document.getElementById('chart-kpi-14d').innerText = `$${fcData.forecasts[13].predicted_rate.toFixed(2)}/MT`;
+        const delta = ((fcData.forecasts[0].predicted_rate - histData.records[histData.records.length-1].rate) / histData.records[histData.records.length-1].rate) * 100;
+        const sign = delta >= 0 ? '+' : '';
+        document.getElementById('chart-kpi-delta').innerText = `${sign}${delta.toFixed(1)}% ($${Math.abs(delta * histData.records[histData.records.length-1].rate / 100).toFixed(2)}/MT)`;
+      }
+      // Fetch feasibility info for default vessel preset
+      const vesselSelect = document.querySelector('.preset-buttons .btn-preset.active');
+      const vesselId = vesselSelect ? vesselSelect.id.replace('preset-','') : 'capesize';
+      const feasRes = await fetch('/api/v1/feasibility/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          route_id: routeId,
+          vessel_id: vesselId,
+          cargo_quantity_mt: 0,
+          cargo_type: 'coking-coal'
+        })
+      });
+      const feasData = await feasRes.json();
+      // Update feasibility UI (example placeholder)
+      document.getElementById('overall-verdict-tag').innerText = feasData.is_feasible ? 'FEASIBLE' : 'NOT FEASIBLE';
+    }
+
+    // Helper to update Chart.js chart (implementation kept as before, using globals)
+    function updateChart(histDays, histRates, fcDays, fcRates, ciUpper, ciLower) {
+      // Assume freightChart already created; update its data sets
+      if (typeof freightChart !== 'undefined') {
+        freightChart.data.labels = [...histDays, ...fcDays];
+        freightChart.data.datasets[0].data = histRates;
+        freightChart.data.datasets[1].data = fcRates;
+        freightChart.data.datasets[2].data = ciUpper;
+        freightChart.data.datasets[3].data = ciLower;
+        freightChart.update();
+      }
+    }
+
+    // =========================================================
+    // 1. DETERMINISTIC MOCK DATA (SIH REQUIREMENT E)
+    // =========================================================
+    const LANES_DATA = {
+      "australia-paradip": {
+        id: "australia-paradip",
+        name: "Australia (Newcastle) ➔ Paradip (Capesize Coal)",
+        shortName: "AUSTRALIA ➔ PARADIP",
+        defaultPort: "paradip",
+        defaultVessel: "capesize",
+        cargoName: "Australian Coking Coal",
+        cargoSize: 140000,
+        spotToday: 19.85,
+        forecast7d: 18.40,
+        forecast14d: 17.90,
+        deltaPct: -7.3,
+        deltaAbs: -1.45,
+        decision: "WAIT",
+        decisionTitle: "WAIT TO FIX (5–7 DAYS)",
+        whenText: "Wait 5–7 Days",
+        whenSub: "Target Window: Oct 14–16",
+        whichVesselText: "Capesize (180k DWT)",
+        whichVesselSub: "Optimal economies of scale",
+        whatActionText: "Hold Spot Bid",
+        whatActionSub: "Trigger order at $18.50/MT",
+        confidence: 84.2,
+        signalColor: "amber",
+        uncertaintyText: "Low (±$0.60/MT)",
+        reasoning: "Capesize tonnage buildup in the Pacific Basin is accelerating while Australian port terminal delays have normalized. Our ensemble model forecasts a $1.45/MT (-7.3%) freight rate dip over the next 7 days.",
+        historyDays: ["D-14", "D-12", "D-10", "D-8", "D-6", "D-4", "D-2", "Today"],
+        historyRates: [21.40, 21.15, 20.80, 20.90, 20.40, 20.10, 19.95, 19.85],
+        forecastDays: ["Today", "D+2", "D+4", "D+6", "D+8", "D+10", "D+12", "D+14"],
+        forecastRates: [19.85, 19.30, 18.85, 18.50, 18.20, 18.05, 17.95, 17.90],
+        ciUpper: [19.85, 19.90, 19.60, 19.30, 19.10, 19.00, 18.90, 18.80],
+        ciLower: [19.85, 18.70, 18.10, 17.70, 17.30, 17.10, 17.00, 16.90],
+        savingsEst: "$203,000",
+        // Scenarios
+        scenarioNow: {
+          rate: 19.85,
+          freightBill: "$2,779,000",
+          move: "Spot Baseline (0.0%)",
+          demurrage: "Low ($0)",
+          feas: "PASS (Direct Berth)",
+          risk: "MODERATE",
+          score: "74 / 100",
+          reason: "Guarantees load window and eliminates laycan uncertainty, but locks in current market price before anticipated vessel supply arrival."
+        },
+        scenarioWait: {
+          rate: 18.40,
+          freightBill: "$2,576,000",
+          move: "-7.3% (-$1.45/MT)",
+          demurrage: "Low-to-Mid (Acceptable)",
+          feas: "PASS (Berth Clear)",
+          risk: "LOW",
+          score: "88 / 100",
+          reason: "Captures forecasted Pacific tonnage overhang to save an estimated $203,000 without compromising plant stock safety margins."
+        },
+        scenarioAlt: {
+          vesselClass: "Panamax (75k DWT)",
+          rate: 21.10,
+          freightBill: "$2,954,000 (Split 2x)",
+          move: "+6.3% Size Premium",
+          demurrage: "Minimal (Zero Tide Wait)",
+          feas: "OPTIMAL FIT",
+          risk: "MODERATE (Higher $/MT)",
+          score: "68 / 100",
+          reason: "Unlocks total draft safety at all Indian berths and avoids draft turn-aways, but incurs higher unit ton-mile freight costs."
+        },
+        // Risks
+        risks: {
+          freightScore: "68/100", freightLevel: "mod", freightDesc: "Current spot rate is moderately above the 90-day moving average. Downside freight movement favored over next 7 days.", freightAct: "Implement trailing market limit order at $18.50/MT with shipowners.",
+          demurrageScore: "28/100", demurrageLevel: "low", demurrageDesc: "Expected laycan queuing at destination berth is 1.2 days, safely beneath the standard 3.0-day laytime allowance.", demurrageAct: "Negotiate 36,000 MT/day reversible laytime terms in charter party.",
+          uncertScore: "22/100", uncertLevel: "low", uncertDesc: "Ensemble variance is narrow (±$0.60/MT at 80% CI). Low probability of black-swan freight spike over 7 days.", uncertAct: "Set protective stop-loss fixing directive at $20.20/MT threshold.",
+          congestScore: "54/100", congestLevel: "mod", congestDesc: "Destination anchorage currently holds 6 bulkers waiting for mechanized berths. Tidal windows manageable.", congestAct: "Time voyage speed (eco-steaming) to match estimated berth opening.",
+          feasScore: "18/100", feasLevel: "low", feasDesc: "Nominated vessel dimensions comfortably meet berth LOA and draft limits with positive hydrographic safety margin.", feasAct: "Validate seasonal post-monsoon channel depth bulletin prior to Notice of Readiness.",
+          overallScore: "INDEX: 38/100", overallLevel: "low", overallDesc: "Overall risk is LOW TO MODERATE. Conditions strongly favor executing the strategic recommendation.", overallAct: "Proceed with recommendation: Hold fixture for 5–7 day rate trough.",
+          bannerText: "LOW (38 / 100)"
+        },
+        // Factors
+        factors: [
+          { name: "Pacific Ballaster Influx", metric: "+14 Capesize converging", dir: "↓ Pushes Rates Down", color: "#4ADE80", weight: 34 },
+          { name: "Discharge Port Clearance", metric: "Paradip Draft Margin Safe", dir: "✓ Verified Feasible", color: "#4ADE80", weight: 26 },
+          { name: "Bunker Fuel Forward Swaps", metric: "VLSFO steady at $594/MT", dir: "↔ Neutral Pressure", color: "#D3E2EE", weight: 18 },
+          { name: "Destination Berth Waiting Queue", metric: "1.2 days queue depth", dir: "✓ Low Demurrage Threat", color: "#4ADE80", weight: 14 },
+          { name: "Forecast Uncertainty Margin", metric: "±$0.60/MT variance band", dir: "✓ High Model Certainty", color: "#4ADE80", weight: 8 }
+        ]
+      },
+
+      "australia-vizag": {
+        id: "australia-vizag",
+        name: "Australia (Gladstone) ➔ Visakhapatnam (Panamax Coal)",
+        shortName: "AUSTRALIA ➔ VISAKHAPATNAM",
+        defaultPort: "vizag",
+        defaultVessel: "panamax",
+        cargoName: "Queensland Metallurgical Coal",
+        cargoSize: 75000,
+        spotToday: 16.30,
+        forecast7d: 17.65,
+        forecast14d: 18.20,
+        deltaPct: 8.3,
+        deltaAbs: 1.35,
+        decision: "BOOK NOW",
+        decisionTitle: "BOOK SPOT NOW (IMMEDIATELY)",
+        whenText: "Book Now (Within 48h)",
+        whenSub: "Market Entry Window Closing",
+        whichVesselText: "Panamax (75k DWT)",
+        whichVesselSub: "Highest berth turnaround velocity",
+        whatActionText: "Execute Spot Fixture",
+        whatActionSub: "Lock in owners at $16.30/MT",
+        confidence: 91.5,
+        signalColor: "teal",
+        uncertaintyText: "Narrow (±$0.45/MT)",
+        reasoning: "Indian Ocean weather deterioration near Madagascar combined with sudden Australian load port logistics recovery has sparked a fixture rally. Secure spot tonnage immediately before rates advance another +8.3%.",
+        historyDays: ["D-14", "D-12", "D-10", "D-8", "D-6", "D-4", "D-2", "Today"],
+        historyRates: [15.20, 15.35, 15.50, 15.70, 15.90, 16.10, 16.20, 16.30],
+        forecastDays: ["Today", "D+2", "D+4", "D+6", "D+8", "D+10", "D+12", "D+14"],
+        forecastRates: [16.30, 16.80, 17.25, 17.65, 17.95, 18.10, 18.15, 18.20],
+        ciUpper: [16.30, 17.20, 17.80, 18.30, 18.70, 18.90, 19.10, 19.20],
+        ciLower: [16.30, 16.40, 16.70, 17.00, 17.20, 17.30, 17.25, 17.20],
+        savingsEst: "$101,250 Loss Prevented",
+        // Scenarios
+        scenarioNow: {
+          rate: 16.30,
+          freightBill: "$1,222,500",
+          move: "Spot Baseline ($16.30)",
+          demurrage: "Zero ($0)",
+          feas: "PASS (Berth EQ-1 Clear)",
+          risk: "LOW",
+          score: "92 / 100",
+          reason: "Locks in favorable rate before sharp +8.3% regional rate rally takes hold across the Indian Ocean basin."
+        },
+        scenarioWait: {
+          rate: 17.65,
+          freightBill: "$1,323,750",
+          move: "+8.3% Cost Surge (+$1.35/MT)",
+          demurrage: "Elevated (Tight Laycan)",
+          feas: "PASS (Berth Available)",
+          risk: "HIGH",
+          score: "52 / 100",
+          reason: "Exposes chartering budget to severe market squeeze with an estimated $101,250 excess expenditure."
+        },
+        scenarioAlt: {
+          vesselClass: "Capesize (160k Part-Load)",
+          rate: 15.10,
+          freightBill: "$1,450,000 (Min Parcel)",
+          move: "-7.3% Unit Rate",
+          demurrage: "High (Draft Constraint)",
+          feas: "RESTRICTED (Outer Hbr Only)",
+          risk: "HIGH (Lightering Threat)",
+          score: "59 / 100",
+          reason: "Provides lower nominal $/MT rate but incurs high deadfreight penalties unless parcel size can be doubled."
+        },
+        // Risks
+        risks: {
+          freightScore: "84/100", freightLevel: "high", freightDesc: "Strong upward momentum (+8.3% in 7D) driven by tightening regional vessel supply and bunker cost rallies.", freightAct: "Fix prompt tonnage within 24 hours to prevent cost inflation.",
+          demurrageScore: "35/100", demurrageLevel: "low", demurrageDesc: "Outer Harbour EQ-1 berth line-up is clean (average turn-time under 24 hours).", demurrageAct: "Confirm standard NOR tender upon arrival at Fairway Buoy.",
+          uncertScore: "18/100", uncertLevel: "low", uncertDesc: "Model conviction is very high (91.5% confidence score with tightly converging quantiles).", uncertAct: "Proceed with full commercial volume without hedging requirement.",
+          congestScore: "32/100", congestLevel: "low", congestDesc: "Visakhapatnam deep outer berths are running at 68% utilization.", congestAct: "Schedule direct discharge without high-tide waiting.",
+          feasScore: "12/100", feasLevel: "low", feasDesc: "Panamax dimensions easily pass Visakhapatnam 16.5m draft envelope.", feasAct: "File routine advance electronic clearance to Harbour Master.",
+          overallScore: "INDEX: 26/100", overallLevel: "low", overallDesc: "LOW COMPOSITE RISK. Clear commercial advantage to fix spot immediately.", overallAct: "Execute charter contract today at $16.30/MT.",
+          bannerText: "LOW RISK // URGENT ACTION NEEDED (26 / 100)"
+        },
+        // Factors
+        factors: [
+          { name: "Indian Ocean Weather Disruptions", metric: "Cyclone swell near Madagascar", dir: "↑ Drives Rates Up", color: "#F87171", weight: 38 },
+          { name: "Regional Vessel Scarcity", metric: "Panamax prompt list down 28%", dir: "↑ Tight Supply Squeeze", color: "#F87171", weight: 30 },
+          { name: "Visakhapatnam Berth Fit", metric: "16.5m Draft Allowance", dir: "✓ 100% Hydrographic Clearance", color: "#4ADE80", weight: 16 },
+          { name: "Bunker Fuel Cost Spikes", metric: "Singapore VLSFO +2.4%", dir: "↑ Bunker Adjustment Factor", color: "#F87171", weight: 10 },
+          { name: "Model Quantile Consensus", metric: "91.5% confidence rating", dir: "✓ Strong Actionable Signal", color: "#4ADE80", weight: 6 }
+        ]
+      },
+
+      "indonesia-dhamra": {
+        id: "indonesia-dhamra",
+        name: "Indonesia (Taboneo) ➔ Dhamra (Supramax Steam Coal)",
+        shortName: "INDONESIA ➔ DHAMRA",
+        defaultPort: "dhamra",
+        defaultVessel: "supramax",
+        cargoName: "Indonesian Low-Ash Steam Coal",
+        cargoSize: 58000,
+        spotToday: 11.40,
+        forecast7d: 11.95,
+        forecast14d: 12.20,
+        deltaPct: 4.8,
+        deltaAbs: 0.55,
+        decision: "BOOK NOW",
+        decisionTitle: "BOOK SPOT NOW / CONSIDER PANAMAX",
+        whenText: "Book Promptly (1–3 Days)",
+        whenSub: "Pre-monsoon swell window",
+        whichVesselText: "Supramax (58k) / Panamax",
+        whichVesselSub: "Dhamra 18m draft handles Panamax easily",
+        whatActionText: "Book Now or Scale Up",
+        whatActionSub: "Compare unit cost vs Panamax",
+        confidence: 82.0,
+        signalColor: "teal",
+        uncertaintyText: "Moderate (±$0.50/MT)",
+        reasoning: "Indonesian anchorage congestion at Taboneo is easing, but barge loading queues are tightening ahead of rain forecasts. Securing prompt gearless Supramax or scaling to Panamax avoids delay.",
+        historyDays: ["D-14", "D-12", "D-10", "D-8", "D-6", "D-4", "D-2", "Today"],
+        historyRates: [10.90, 11.05, 11.10, 11.25, 11.30, 11.35, 11.38, 11.40],
+        forecastDays: ["Today", "D+2", "D+4", "D+6", "D+8", "D+10", "D+12", "D+14"],
+        forecastRates: [11.40, 11.55, 11.75, 11.95, 12.10, 12.15, 12.18, 12.20],
+        ciUpper: [11.40, 11.90, 12.20, 12.50, 12.70, 12.80, 12.85, 12.90],
+        ciLower: [11.40, 11.25, 11.40, 11.55, 11.60, 11.62, 11.60, 11.58],
+        savingsEst: "$31,900 Avoided",
+        // Scenarios
+        scenarioNow: {
+          rate: 11.40,
+          freightBill: "$661,200",
+          move: "Spot Baseline ($11.40)",
+          demurrage: "Low ($0)",
+          feas: "PASS (Dhamra Berth 1)",
+          risk: "LOW",
+          score: "86 / 100",
+          reason: "Secures prompt Indonesian laycan before forecast rain showers disrupt river barge loading."
+        },
+        scenarioWait: {
+          rate: 11.95,
+          freightBill: "$693,100",
+          move: "+4.8% (+$0.55/MT)",
+          demurrage: "Moderate (Barge Queues)",
+          feas: "PASS (Berth Available)",
+          risk: "MODERATE",
+          score: "66 / 100",
+          reason: "Waiting offers no financial upside as rate trend is moderately bullish and weather risk increases."
+        },
+        scenarioAlt: {
+          vesselClass: "Panamax (75k DWT)",
+          rate: 10.20,
+          freightBill: "$765,000 (Larger Cargo)",
+          move: "-10.5% Scale Economy",
+          demurrage: "Minimal (Dhamra Fast Unload)",
+          feas: "EXCELLENT (18m Draft Clear)",
+          risk: "LOW",
+          score: "90 / 100",
+          reason: "Highly attractive alternative! Dhamra's 18.0m draft allows up-sizing to Panamax to reduce freight by $1.20/MT."
+        },
+        // Risks
+        risks: {
+          freightScore: "52/100", freightLevel: "mod", freightDesc: "Mild upward rate creep expected due to steady Indian thermal coal replenishing demand.", freightAct: "Lock in Supramax or Panamax owner before weekly fixture index resets.",
+          demurrageScore: "42/100", demurrageLevel: "mod", demurrageDesc: "Kalimantan open-sea anchorage subject to monsoon squall loading pauses.", demurrageAct: "Include weather-working-days clause in fixture terms.",
+          uncertScore: "30/100", uncertLevel: "low", uncertDesc: "Short voyage duration (6–8 days steaming) minimizes macro uncertainty exposure.", uncertAct: "Monitor daily satellite cloud imagery over Java Sea.",
+          congestScore: "24/100", congestLevel: "low", congestDesc: "Dhamra Port operates dedicated automated bulk unloader at 50,000 TPD.", congestAct: "Coordinate arrival with Dhamra port scheduler for zero-wait berthing.",
+          feasScore: "10/100", feasLevel: "low", feasDesc: "Dhamra is an all-weather deep water port. Supramax utilizes less than 65% of berth limits.", feasAct: "No draft restriction mitigation necessary.",
+          overallScore: "INDEX: 31/100", overallLevel: "low", overallDesc: "LOW COMPOSITE RISK. Clear directive to book now or upgrade to Panamax.", overallAct: "Fix immediately or consult procurement to accept Panamax parcel.",
+          bannerText: "LOW (31 / 100) // ACTION RECOMMENDED"
+        },
+        // Factors
+        factors: [
+          { name: "Dhamra Deep Water Capacity", metric: "18.0m Depth Available", dir: "✓ Can Upsize to Panamax", color: "#4ADE80", weight: 36 },
+          { name: "Indonesian Load Port Rain Season", metric: "Barge delays at Taboneo", dir: "↑ Pushes Spot Premiums", color: "#F87171", weight: 28 },
+          { name: "East Coast India Coal Demand", metric: "Thermal plant stocks < 12 days", dir: "↑ Steady Buy Pressure", color: "#F87171", weight: 18 },
+          { name: "Dhamra Rapid Discharge Rate", metric: "50,000 TPD unloading", dir: "✓ Near-Zero Demurrage", color: "#4ADE80", weight: 12 },
+          { name: "Short Sea Transit Time", metric: "6.5 days sailing", dir: "✓ Low Weather Risk", color: "#4ADE80", weight: 6 }
+        ]
+      }
+    };
+
+    // =========================================================
+    // 2. PORT LIMITS & ADVISORIES
+    // =========================================================
+    const PORT_LIMITS = {
+      paradip: {
+        name: "Paradip Port — Mechanized Coal Berth (MCHW)",
+        maxLoa: 300.0,
+        maxBeam: 48.0,
+        maxDraft: 14.5,
+        advisory: "Harbour Master Advisory: Night navigation allowed up to LOA 260m. Vessels > 280m require 2 escort tugs during flood tide entry. Minimum 10% Under Keel Clearance (UKC) strictly enforced."
+      },
+      vizag: {
+        name: "Visakhapatnam — Outer Harbour Coal Terminal (EQ-1)",
+        maxLoa: 290.0,
+        maxBeam: 45.0,
+        maxDraft: 16.5,
+        advisory: "Harbour Master Advisory: Outer Harbour accepts up to 200,000 DWT. Deep water channel with 16.5m draft at high water. Air draft restriction under conveyor: 21.0m."
+      },
+      dhamra: {
+        name: "Dhamra Port — Deep Draft Berth 1 (Capesize Iron/Coal)",
+        maxLoa: 315.0,
+        maxBeam: 50.0,
+        maxDraft: 18.0,
+        advisory: "Harbour Master Advisory: All-weather deep water port. Capesize vessels up to 18.0m draft berthed without tidal delay. Dual-line unloader discharge rate: 50,000 TPD."
+      }
+    };
+
+    // Vessel Presets
+    const VESSEL_PRESETS = {
+      capesize: { name: "Capesize (180k DWT)", loa: 292.0, beam: 45.0, draft: 14.5 },
+      kamsarmax: { name: "Kamsarmax (82k DWT)", loa: 229.0, beam: 32.2, draft: 14.4 },
+      panamax: { name: "Panamax (75k DWT)", loa: 225.0, beam: 32.2, draft: 13.8 },
+      supramax: { name: "Supramax (58k DWT)", loa: 199.9, beam: 32.2, draft: 12.8 },
+      handysize: { name: "Handysize (38k DWT)", loa: 180.0, beam: 28.4, draft: 10.2 }
+    };
+
+    // Global Active State
+    let currentLaneKey = "australia-paradip";
+    let currentVesselPreset = "capesize";
+    let freightChartInstance = null;
+
+    // =========================================================
+    // 3. CHART.JS INITIALIZATION & UPDATE
+    // =========================================================
+    function buildFreightChart(laneKey) {
+      const lane = LANES_DATA[laneKey];
+      const canvas = document.getElementById('freightChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      const allLabels = [...lane.historyDays.slice(0, -1), ...lane.forecastDays];
+      const histSeries = [...lane.historyRates, null, null, null, null, null, null, null];
+
+      const forecastSeries = new Array(lane.historyDays.length - 1).fill(null);
+      forecastSeries.push(...lane.forecastRates);
+
+      const ciUpperSeries = new Array(lane.historyDays.length - 1).fill(null);
+      ciUpperSeries.push(...lane.ciUpper);
+
+      const ciLowerSeries = new Array(lane.historyDays.length - 1).fill(null);
+      ciLowerSeries.push(...lane.ciLower);
+
+      if (freightChartInstance) {
+        freightChartInstance.destroy();
+      }
+
+      const signalColorHex = lane.signalColor === 'teal' ? '#2F8F7B' : '#C1652F';
+
+      freightChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: allLabels,
+          datasets: [
+            {
+              label: 'Historical Actuals',
+              data: histSeries,
+              borderColor: '#0B2438',
+              backgroundColor: '#0B2438',
+              borderWidth: 2.5,
+              pointRadius: 3.5,
+              pointHoverRadius: 6,
+              tension: 0.15,
+              fill: false
+            },
+            {
+              label: 'Ensemble Forecast (7–14D)',
+              data: forecastSeries,
+              borderColor: signalColorHex,
+              backgroundColor: signalColorHex,
+              borderWidth: 2.5,
+              borderDash: [6, 4],
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              tension: 0.2,
+              fill: false
+            },
+            {
+              label: 'Upper 80% CI',
+              data: ciUpperSeries,
+              borderColor: 'transparent',
+              pointRadius: 0,
+              tension: 0.2,
+              fill: '+1',
+              backgroundColor: lane.signalColor === 'teal' ? 'rgba(47, 143, 123, 0.12)' : 'rgba(193, 101, 47, 0.12)'
+            },
+            {
+              label: 'Lower 80% CI',
+              data: ciLowerSeries,
+              borderColor: 'transparent',
+              pointRadius: 0,
+              tension: 0.2,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#0B2438',
+              titleFont: { family: 'IBM Plex Mono', size: 12 },
+              bodyFont: { family: 'IBM Plex Mono', size: 12 },
+              padding: 10,
+              borderColor: 'rgba(255,255,255,0.2)',
+              borderWidth: 1,
+              callbacks: {
+                label: function(context) {
+                  if (context.raw !== null && context.raw !== undefined) {
+                    return ` ${context.dataset.label}: $${Number(context.raw).toFixed(2)}/MT`;
+                  }
+                  return '';
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(11, 36, 56, 0.07)' },
+              ticks: { font: { family: 'IBM Plex Mono', size: 11 }, color: '#536471' }
+            },
+            y: {
+              grid: { color: 'rgba(11, 36, 56, 0.08)' },
+              ticks: {
+                font: { family: 'IBM Plex Mono', size: 11 },
+                color: '#536471',
+                callback: function(val) { return '$' + val.toFixed(2); }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // =========================================================
+    // 4. CENTRAL CONNECTIVITY CONTROLLER (SIH REQUIREMENT D)
+    // =========================================================
+    function onLaneChange(laneKey) {
+      currentLaneKey = laneKey;
+      const lane = LANES_DATA[laneKey];
+      if (!lane) return;
+
+      // Update Port dropdown to match default for lane
+      document.getElementById('dest-port').value = lane.defaultPort;
+
+      // Update Vessel preset to match default for lane
+      applyVesselPreset(lane.defaultVessel, false);
+
+      updateAll();
+    }
+
+    function onPortChange(portKey) {
+      updateAll();
+    }
+
+    function onCustomDimensionsChange() {
+      // Uncheck preset buttons when custom values are manually entered
+      document.querySelectorAll('.btn-preset').forEach(btn => btn.classList.remove('active'));
+      currentVesselPreset = 'custom';
+      updateAll();
+    }
+
+    function applyVesselPreset(presetKey, shouldUpdate = true) {
+      currentVesselPreset = presetKey;
+      document.querySelectorAll('.btn-preset').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById(`preset-${presetKey}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const data = VESSEL_PRESETS[presetKey];
+      if (data) {
+        document.getElementById('ves-loa').value = data.loa;
+        document.getElementById('ves-beam').value = data.beam;
+        document.getElementById('ves-draft').value = data.draft;
+      }
+      if (shouldUpdate) updateAll();
+    }
+
+    // Master update routine that synchronizes all modules
+    function updateAll() {
+      const lane = LANES_DATA[currentLaneKey];
+      const portKey = document.getElementById('dest-port').value;
+      const port = PORT_LIMITS[portKey] || PORT_LIMITS.paradip;
+
+      const loa = parseFloat(document.getElementById('ves-loa').value) || 0;
+      const beam = parseFloat(document.getElementById('ves-beam').value) || 0;
+      const draft = parseFloat(document.getElementById('ves-draft').value) || 0;
+
+      // 1. Update Chart
+      buildFreightChart(currentLaneKey);
+
+      // 2. Update Feasibility Matrix
+      const loaMargin = port.maxLoa - loa;
+      const beamMargin = port.maxBeam - beam;
+      const draftMargin = port.maxDraft - draft;
+
+      const loaPass = loaMargin >= 0;
+      const beamPass = beamMargin >= 0;
+      const draftPass = draftMargin >= 0;
+      const allPass = loaPass && beamPass && draftPass;
+      const isDraftFail = !draftPass;
+
+      const tbody = document.getElementById('matrix-tbody');
+      tbody.innerHTML = `
+        <tr>
+          <td>LOA</td>
+          <td>${loa.toFixed(1)} m</td>
+          <td>${port.maxLoa.toFixed(1)} m max</td>
+          <td style="color:${loaPass ? '#4ADE80' : '#F87171'};">${loaMargin >= 0 ? '+' : ''}${loaMargin.toFixed(1)} m</td>
+          <td><span class="status-badge ${loaPass ? 'pass' : 'fail'}">${loaPass ? 'PASS' : 'FAIL'}</span></td>
+        </tr>
+        <tr>
+          <td>Beam</td>
+          <td>${beam.toFixed(1)} m</td>
+          <td>${port.maxBeam.toFixed(1)} m max</td>
+          <td style="color:${beamPass ? '#4ADE80' : '#F87171'};">${beamMargin >= 0 ? '+' : ''}${beamMargin.toFixed(1)} m</td>
+          <td><span class="status-badge ${beamPass ? 'pass' : 'fail'}">${beamPass ? 'PASS' : 'FAIL'}</span></td>
+        </tr>
+        <tr>
+          <td>Draft</td>
+          <td>${draft.toFixed(1)} m</td>
+          <td>${port.maxDraft.toFixed(1)} m CD</td>
+          <td style="color:${draftPass ? '#4ADE80' : '#F87171'};">${draftMargin >= 0 ? '+' : ''}${draftMargin.toFixed(1)} m</td>
+          <td><span class="status-badge ${draftPass ? 'pass' : 'fail'}">${draftPass ? 'PASS' : 'FAIL'}</span></td>
+        </tr>
+      `;
+
+      const tag = document.getElementById('overall-verdict-tag');
+      const desc = document.getElementById('overall-verdict-desc');
+      document.getElementById('res-port-name').innerText = port.name.split('—')[0].toUpperCase();
+
+      let feasibilityVerdictStr = "PASS";
+      if (allPass) {
+        tag.className = 'verdict-tag pass';
+        tag.innerText = 'FEASIBLE TO FIX';
+        desc.innerText = 'Nominated vessel satisfies all hydrographic navigation, berth channel, and draft limitations.';
+        feasibilityVerdictStr = "PASS";
+      } else if (isDraftFail && loaPass && beamPass) {
+        tag.className = 'verdict-tag warn';
+        tag.innerText = 'TIDAL / LIGHTERING REQUIRED';
+        desc.innerText = `Draft exceeds chart datum by ${Math.abs(draftMargin).toFixed(1)}m. High-tide entry window or high-seas anchorage lightering required.`;
+        feasibilityVerdictStr = "TIDAL RESTRICTED";
+      } else {
+        tag.className = 'verdict-tag fail';
+        tag.innerText = 'BERTH REJECTED';
+        desc.innerText = 'Vessel dimensions exceed structural pier limits or navigation channel geometry. Severe risk of terminal turn-away.';
+        feasibilityVerdictStr = "REJECTED";
+      }
+      document.getElementById('hydro-notes').innerHTML = `<strong>Harbour Master Advisory:</strong> ${port.advisory}`;
+
+      // 3. Update Top Hero Instrument
+      document.getElementById('inst-lane-label').innerText = `ACTIVE CORRIDOR // ${lane.shortName}`;
+      const heroBadge = document.getElementById('hero-signal-badge');
+      
+      // If feasibility fails, recommendation is overridden to caution!
+      let effectiveDecision = lane.decision;
+      let effectiveDecisionTitle = lane.decisionTitle;
+      if (!allPass) {
+        effectiveDecision = "ALT VESSEL";
+        effectiveDecisionTitle = "SWITCH VESSEL (DRAFT MISMATCH)";
+      }
+
+      heroBadge.innerText = effectiveDecision;
+      heroBadge.className = `signal-badge ${effectiveDecision === 'BOOK NOW' ? 'book-now' : (effectiveDecision === 'WAIT' ? 'wait' : 'alt')}`;
+
+      document.getElementById('hero-conf-score').innerText = `${lane.confidence}%`;
+      const meter = document.getElementById('hero-conf-meter');
+      meter.style.width = `${lane.confidence}%`;
+      meter.style.background = effectiveDecision === 'BOOK NOW'
+        ? 'linear-gradient(90deg, #2F8F7B, #4ADE80)'
+        : (effectiveDecision === 'WAIT' ? 'linear-gradient(90deg, #C1652F, #F87171)' : 'linear-gradient(90deg, #C5A059, #FBBF24)');
+
+      document.getElementById('hero-reasoning-text').innerHTML = `<strong>Auditable Reasoning:</strong> ${lane.reasoning}`;
+      document.getElementById('hero-spot-val').innerText = `$${lane.spotToday.toFixed(2)}/MT`;
+      document.getElementById('hero-fc-val').innerText = `$${lane.forecast7d.toFixed(2)}/MT`;
+      document.getElementById('hero-fc-val').className = `metric-val ${lane.deltaPct < 0 ? 'green' : 'amber'}`;
+      document.getElementById('hero-savings-val').innerText = lane.savingsEst;
+
+      // 4. Update Forecast Section KPIs
+      document.getElementById('chart-kpi-spot').innerText = `$${lane.spotToday.toFixed(2)}/MT`;
+      document.getElementById('chart-kpi-fc').innerText = `$${lane.forecast7d.toFixed(2)}/MT`;
+      const deltaEl = document.getElementById('chart-kpi-delta');
+      const sign = lane.deltaPct > 0 ? '+' : '';
+      deltaEl.innerText = `${sign}${lane.deltaPct.toFixed(1)}% ($${Math.abs(lane.deltaAbs).toFixed(2)}/MT)`;
+      deltaEl.className = `kpi-delta ${lane.deltaPct < 0 ? 'down' : 'up'}`;
+      document.getElementById('chart-kpi-14d').innerText = `$${lane.forecast14d.toFixed(2)}/MT`;
+      document.getElementById('chart-kpi-rec').innerText = effectiveDecisionTitle;
+      document.getElementById('chart-kpi-rec').style.color = effectiveDecision === 'BOOK NOW' ? 'var(--teal-signal)' : 'var(--rust-amber)';
+      document.getElementById('chart-kpi-rec-sub').innerText = `Uncertainty: ${lane.uncertaintyText}`;
+
+      // 5. Update 3-Way Scenarios (SIH Requirement A)
+      const now = lane.scenarioNow;
+      const wait = lane.scenarioWait;
+      const alt = lane.scenarioAlt;
+
+      document.getElementById('scen-rate-now').innerHTML = `$${now.rate.toFixed(2)} <small>/ MT</small>`;
+      document.getElementById('scen-score-now').innerText = now.score;
+      document.getElementById('scen-freight-now').innerText = now.freightBill;
+      document.getElementById('scen-move-now').innerText = now.move;
+      document.getElementById('scen-demurrage-now').innerText = now.demurrage;
+      document.getElementById('scen-feas-now').innerText = allPass ? now.feas : "FAIL (Draft Risk)";
+      document.getElementById('scen-risk-now').innerText = now.risk;
+      document.getElementById('scen-reason-now').innerHTML = `<strong>Charterer Evaluation:</strong> ${now.reason}`;
+
+      document.getElementById('scen-rate-wait').innerHTML = `$${wait.rate.toFixed(2)} <small>/ MT</small>`;
+      document.getElementById('scen-score-wait').innerText = wait.score;
+      document.getElementById('scen-freight-wait').innerText = wait.freightBill;
+      document.getElementById('scen-move-wait').innerText = wait.move;
+      document.getElementById('scen-demurrage-wait').innerText = wait.demurrage;
+      document.getElementById('scen-feas-wait').innerText = allPass ? wait.feas : "FAIL (Draft Risk)";
+      document.getElementById('scen-risk-wait').innerText = wait.risk;
+      document.getElementById('scen-reason-wait').innerHTML = `<strong>Charterer Evaluation:</strong> ${wait.reason}`;
+
+      document.getElementById('scen-alt-name').innerText = `Alt: ${alt.vesselClass}`;
+      document.getElementById('scen-rate-alt').innerHTML = `$${alt.rate.toFixed(2)} <small>/ MT</small>`;
+      document.getElementById('scen-score-alt').innerText = alt.score;
+      document.getElementById('scen-freight-alt').innerText = alt.freightBill;
+      document.getElementById('scen-move-alt').innerText = alt.move;
+      document.getElementById('scen-feas-alt').innerText = alt.feas;
+      document.getElementById('scen-risk-alt').innerText = alt.risk;
+      document.getElementById('scen-reason-alt').innerHTML = `<strong>Charterer Evaluation:</strong> ${alt.reason}`;
+
+      // Reset scenario card styling
+      const cardNow = document.getElementById('scen-card-now');
+      const cardWait = document.getElementById('scen-card-wait');
+      const cardAlt = document.getElementById('scen-card-alt');
+      const stampNow = document.getElementById('stamp-now');
+      const stampWait = document.getElementById('stamp-wait');
+      const stampAlt = document.getElementById('stamp-alt');
+
+      [cardNow, cardWait, cardAlt].forEach(c => c.classList.remove('recommended'));
+      [stampNow, stampWait, stampAlt].forEach(s => { s.className = 'scenario-status-stamp not-rec'; s.innerText = 'ALTERNATIVE'; });
+
+      if (!allPass) {
+        // If current vessel is not feasible, Alternative Vessel is promoted!
+        cardAlt.classList.add('recommended');
+        stampAlt.className = 'scenario-status-stamp rec';
+        stampAlt.innerText = 'RECOMMENDED ACTION';
+      } else if (lane.decision === 'BOOK NOW') {
+        cardNow.classList.add('recommended');
+        stampNow.className = 'scenario-status-stamp rec';
+        stampNow.innerText = 'RECOMMENDED ACTION';
+      } else {
+        cardWait.classList.add('recommended');
+        stampWait.className = 'scenario-status-stamp rec';
+        stampWait.innerText = 'RECOMMENDED ACTION';
+      }
+
+      // 6. Update Cost & Risk Evaluation (SIH Requirement B)
+      const r = lane.risks;
+      document.getElementById('risk-badge-freight').innerText = `SCORE: ${r.freightScore}`;
+      document.getElementById('risk-badge-freight').className = `risk-score-badge ${r.freightLevel}`;
+      document.getElementById('risk-desc-freight').innerText = r.freightDesc;
+      document.getElementById('risk-act-freight').innerText = r.freightAct;
+
+      document.getElementById('risk-badge-demurrage').innerText = `SCORE: ${r.demurrageScore}`;
+      document.getElementById('risk-badge-demurrage').className = `risk-score-badge ${r.demurrageLevel}`;
+      document.getElementById('risk-desc-demurrage').innerText = r.demurrageDesc;
+      document.getElementById('risk-act-demurrage').innerText = r.demurrageAct;
+
+      document.getElementById('risk-badge-uncertainty').innerText = `SCORE: ${r.uncertScore}`;
+      document.getElementById('risk-badge-uncertainty').className = `risk-score-badge ${r.uncertLevel}`;
+      document.getElementById('risk-desc-uncertainty').innerText = r.uncertDesc;
+      document.getElementById('risk-act-uncertainty').innerText = r.uncertAct;
+
+      document.getElementById('risk-badge-congestion').innerText = `SCORE: ${r.congestScore}`;
+      document.getElementById('risk-badge-congestion').className = `risk-score-badge ${r.congestLevel}`;
+      document.getElementById('risk-desc-congestion').innerText = r.congestDesc;
+      document.getElementById('risk-act-congestion').innerText = r.congestAct;
+
+      // Adjust feasibility risk if current vessel fails
+      if (!allPass) {
+        document.getElementById('risk-badge-feasibility').innerText = 'SCORE: 88/100';
+        document.getElementById('risk-badge-feasibility').className = 'risk-score-badge high';
+        document.getElementById('risk-desc-feasibility').innerText = `CRITICAL: Vessel draft exceeds berth chart datum by ${Math.abs(draftMargin).toFixed(1)}m. Turn-away risk.`;
+        document.getElementById('risk-act-feasibility').innerText = 'Switch nomination to Panamax or declare lightering at anchorage.';
+      } else {
+        document.getElementById('risk-badge-feasibility').innerText = `SCORE: ${r.feasScore}`;
+        document.getElementById('risk-badge-feasibility').className = `risk-score-badge ${r.feasLevel}`;
+        document.getElementById('risk-desc-feasibility').innerText = r.feasDesc;
+        document.getElementById('risk-act-feasibility').innerText = r.feasAct;
+      }
+
+      document.getElementById('risk-badge-overall').innerText = r.overallScore;
+      document.getElementById('risk-badge-overall').className = `risk-score-badge ${r.overallLevel}`;
+      document.getElementById('risk-desc-overall').innerText = r.overallDesc;
+      document.getElementById('risk-act-overall').innerText = r.overallAct;
+      document.getElementById('risk-banner-val').innerText = r.bannerText;
+
+      // 7. Update Explainable Recommendation (E-XAI: SIH Requirement C)
+      const xaiHeading = document.getElementById('xai-action-heading');
+      if (!allPass) {
+        xaiHeading.innerText = "SWITCH TO ALTERNATIVE VESSEL";
+        xaiHeading.className = "xai-action-stamp alt";
+      } else if (lane.decision === 'BOOK NOW') {
+        xaiHeading.innerText = "BOOK SPOT IMMEDIATELY";
+        xaiHeading.className = "xai-action-stamp";
+      } else {
+        xaiHeading.innerText = "WAIT TO FIX (5–7 DAYS)";
+        xaiHeading.className = "xai-action-stamp wait";
+      }
+
+      document.getElementById('xai-conf-val').innerText = `${lane.confidence}%`;
+      document.getElementById('xai-ans-when').innerText = !allPass ? "Immediate Re-Nomination" : lane.whenText;
+      document.getElementById('xai-sub-when').innerText = !allPass ? "Avoid terminal turn-away" : lane.whenSub;
+
+      const vesselNameDisplay = currentVesselPreset !== 'custom' && VESSEL_PRESETS[currentVesselPreset]
+        ? VESSEL_PRESETS[currentVesselPreset].name
+        : `Custom (${loa}m LOA / ${draft}m Draft)`;
+
+      document.getElementById('xai-ans-which').innerText = !allPass ? `Alt: ${alt.vesselClass}` : vesselNameDisplay;
+      document.getElementById('xai-sub-which').innerText = !allPass ? "Down-sized for full draft safety" : lane.whichVesselSub;
+
+      const feasAns = document.getElementById('xai-ans-feas');
+      feasAns.innerText = feasibilityVerdictStr;
+      feasAns.style.color = allPass ? '#4ADE80' : (isDraftFail && loaPass && beamPass ? '#FBBF24' : '#F87171');
+      document.getElementById('xai-sub-feas').innerText = allPass
+        ? `Passes ${port.name.split('—')[0]} constraints`
+        : `Draft violation (${Math.abs(draftMargin).toFixed(1)}m excess)`;
+
+      document.getElementById('xai-ans-what').innerText = !allPass ? "Switch Charter Fixture" : lane.whatActionText;
+      document.getElementById('xai-sub-what').innerText = !allPass ? "Re-tender with acceptable DWT" : lane.whatActionSub;
+
+      // Update WHY Bullets
+      const whyList = document.getElementById('xai-why-bullets');
+      if (!allPass) {
+        whyList.innerHTML = `
+          <li><strong>Hydrographic Constraint Failure:</strong> The nominated hull (${draft.toFixed(1)}m draft) exceeds ${port.name.split('—')[0]}'s permissible draft (${port.maxDraft.toFixed(1)}m CD). Berthing directly is hydrographically impossible without high-risk lightering.</li>
+          <li><strong>Alternative Vessel Resolution:</strong> Switching to ${alt.vesselClass} delivers full hydrographic clearance, avoiding demurrage delays of $22,500/day.</li>
+          <li><strong>Commercial Trade-off:</strong> The slightly higher unit freight is fully offset by zero anchorage waiting risk and guaranteed terminal discharge.</li>
+          <li><strong>Immediate Action Required:</strong> Contact shipbroker desk to cancel or substitute nomination before laycan cutoff.</li>
+        `;
+      } else if (lane.decision === 'BOOK NOW') {
+        whyList.innerHTML = `
+          <li><strong>Forecast Trajectory:</strong> Temporal Fusion Transformer forecasts an upward rate advance of +${lane.deltaPct.toFixed(1)}% over the next 7 days. Securing spot tonnage today prevents an estimated ${lane.savingsEst} budget overrun.</li>
+          <li><strong>Port Feasibility Validated:</strong> Selected vessel passes all length, beam, and arrival draft envelopes at ${port.name.split('—')[0]}.</li>
+          <li><strong>Supply Influx Squeeze:</strong> Indian Ocean ballaster count has tightened by 28%, empowering shipowners to increase daily hire rates.</li>
+          <li><strong>Uncertainty Bound:</strong> Narrow forecast uncertainty (80% confidence bound) strongly favors fixing immediately rather than speculating.</li>
+        `;
+      } else {
+        whyList.innerHTML = `
+          <li><strong>Forecast Trajectory:</strong> Quantile time-series model indicates a downward freight curve (${lane.deltaPct.toFixed(1)}%), generating an estimated ${lane.savingsEst} net savings on this cargo parcel.</li>
+          <li><strong>Port Feasibility Validated:</strong> Selected vessel satisfies ${port.name.split('—')[0]} hydrographic restrictions with safe under-keel clearance.</li>
+          <li><strong>Holding vs Demurrage:</strong> Plant coal/ore stockpiles permit a 7-day laycan deferral without triggering inventory stockout risk.</li>
+          <li><strong>Uncertainty & Downside Protection:</strong> Pacific vessel tonnage overhang is verified via satellite AIS; stop-loss order recommended at $20.20/MT.</li>
+        `;
+      }
+
+      // Update Key Factors Table
+      const factorsTbody = document.getElementById('xai-factors-tbody');
+      factorsTbody.innerHTML = lane.factors.map(f => `
+        <tr>
+          <td>${f.name}</td>
+          <td>${f.metric}</td>
+          <td style="color: ${f.color};">${f.dir}</td>
+          <td>
+            <span class="factor-weight-bar"><span class="factor-weight-fill ${f.color === '#F87171' ? 'amber' : ''}" style="width: ${f.weight * 2.5}%;"></span></span>
+            ${f.weight}%
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // =========================================================
+    // 5. LIVE UTC CLOCK TICKER
+    // =========================================================
+    function updateUtcClock() {
+      const now = new Date();
+      const h = String(now.getUTCHours()).padStart(2, '0');
+      const m = String(now.getUTCMinutes()).padStart(2, '0');
+      const s = String(now.getUTCSeconds()).padStart(2, '0');
+      const clockEl = document.getElementById('live-utc-clock');
+      if (clockEl) {
+        clockEl.innerText = `UTC ${h}:${m}:${s} | BDI 1,842 (+14)`;
+      }
+    }
+
+    // =========================================================
+    // 6. BOOTSTRAP INITIALIZATION
+    // =========================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      updateAll();
+      setInterval(updateUtcClock, 1000);
+      updateUtcClock();
+    });
+  </script>
+</body>
+</html>
